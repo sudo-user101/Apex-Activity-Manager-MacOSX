@@ -20,6 +20,7 @@ struct ManageView: View {
                 item("updates", "Updates", "arrow.down.circle")
                 item("security", "Security", "lock.shield")
                 Spacer()
+                if server.isEdition { EditionUpdateCard(server: server).padding(.bottom, 8) }
                 if let s = status {
                     Label(s.panel ? "Full root: on" : "Full root: off", systemImage: s.panel ? "checkmark.shield" : "lock")
                         .font(.caption).foregroundStyle(s.panel ? Color.green : Color.secondary)
@@ -59,6 +60,83 @@ struct ManageView: View {
                 .background(pane == id ? Color.accentColor.opacity(0.18) : .clear, in: RoundedRectangle(cornerRadius: 7))
         }
         .buttonStyle(.plain)
+    }
+}
+
+/// Server Edition's own version and updates, at the bottom of the sidebar.
+struct EditionUpdateCard: View {
+    let server: ServerConfig
+    @State private var answer: EditionUpdateClient.Answer?
+    @State private var busy: String?
+    @State private var note: String?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            switch answer {
+            case nil:
+                ProgressView().controlSize(.small)
+            case .tooOld:
+                Text("Apex Server Edition").font(.caption.weight(.semibold))
+                Text("This version can’t update itself. Update it once at the server; after that it keeps itself up to date.")
+                    .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                Button("Copy Update Command") {
+                    NSPasteboard.general.clearContents(); NSPasteboard.general.setString(EditionUpdateClient.manualCommand, forType: .string)
+                    note = "Copied. Paste it in a terminal on \(server.name)."
+                }
+                .controlSize(.small)
+            case .failed(let m):
+                Text("Apex Server Edition").font(.caption.weight(.semibold))
+                Text(m).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            case .status(let u):
+                Text("Apex Server Edition \(u.current)").font(.caption.weight(.semibold))
+                Label(u.summary, systemImage: u.available ? "arrow.down.circle.fill" : (u.problem?.isEmpty == false ? "exclamationmark.triangle" : "checkmark.circle"))
+                    .font(.caption).foregroundStyle(u.available ? Color.accentColor : (u.problem?.isEmpty == false ? Color.orange : Color.secondary))
+                    .fixedSize(horizontal: false, vertical: true)
+                HStack(spacing: 6) {
+                    if u.available, let latest = u.latest {
+                        Button("Update") { install(latest) }.controlSize(.small).disabled(busy != nil)
+                            .help("Installs \(latest) on \(server.name). It restarts Apex Server Edition there, which closes an open terminal. Settings and paired devices stay.")
+                    }
+                    Button("Check Now") { check() }.controlSize(.small).disabled(busy != nil)
+                    if busy != nil { ProgressView().controlSize(.mini) }
+                }
+                Text(u.auto ? "Updates itself once a day" : "Automatic updates are off at the server")
+                    .font(.caption2).foregroundStyle(.secondary)
+            }
+            if let note { Text(note).font(.caption2).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .task(id: server.id) { await load() }
+    }
+
+    private func load() async {
+        let s = server
+        answer = await Task.detached { EditionUpdateClient.status(s) }.value
+    }
+
+    private func check() {
+        busy = "check"; note = nil
+        let s = server
+        Task {
+            let r = await Task.detached { EditionUpdateClient.send(s, "check") }.value
+            if let st = r.status { answer = .status(st) }
+            note = r.ok ? nil : r.message
+            busy = nil
+        }
+    }
+
+    private func install(_ version: String) {
+        busy = "install"; note = nil
+        let s = server
+        Task {
+            let r = await Task.detached { EditionUpdateClient.send(s, "install") }.value
+            guard r.ok else { note = r.message; busy = nil; return }
+            note = r.message
+            let ok = await EditionUpdateClient.waitFor(s, version: version)
+            await load()
+            note = ok ? "Updated to \(version)." : "\(s.name) didn’t come back as \(version) within a minute. If it didn’t start, the server put the old version back."
+            busy = nil
+        }
     }
 }
 

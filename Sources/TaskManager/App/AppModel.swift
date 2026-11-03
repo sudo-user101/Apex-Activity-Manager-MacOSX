@@ -4,7 +4,7 @@ import ProcessIdentityCore
 import SwiftUI
 
 enum AppSection: String, CaseIterable, Identifiable {
-    case processes, performance, ai, history, startup, users, services, report, sites, docker, manage
+    case processes, performance, ai, history, startup, users, services, report, sites, docker, apps, manage
     var id: String { rawValue }
 
     var title: String {
@@ -19,6 +19,7 @@ enum AppSection: String, CaseIterable, Identifiable {
         case .report: return "Report"
         case .sites: return "Sites"
         case .docker: return "Docker"
+        case .apps: return "Apps"
         case .manage: return "Manage"
         }
     }
@@ -37,21 +38,22 @@ enum AppSection: String, CaseIterable, Identifiable {
         case .report: return "doc.text.magnifyingglass"
         case .sites: return "globe"
         case .docker: return "shippingbox"
+        case .apps: return "square.grid.2x2"
         case .manage: return "wrench.and.screwdriver"
         }
     }
 
     /// The tabs for a server or container (This Mac menu). The others are
     /// about this Mac, so they're hidden then; Report is only for servers.
-    var followsTarget: Bool { [.processes, .performance, .services, .users, .report, .sites, .docker, .manage].contains(self) }
-    var onMac: Bool { ![.report, .sites, .docker, .manage].contains(self) }
+    var followsTarget: Bool { [.processes, .performance, .services, .users, .report, .sites, .docker, .apps, .manage].contains(self) }
+    var onMac: Bool { ![.report, .sites, .docker, .apps, .manage].contains(self) }
 
     /// Sites (reverse proxies) and Docker Management are for servers, not
     /// containers; Manage is for one server at a time.
     func shows(on t: MachineTarget) -> Bool {
         if t.isMac { return onMac }
         if self == .manage { if case .server = t { return true }; return false }
-        return followsTarget && !((self == .sites || self == .docker) && t == .allContainers)
+        return followsTarget && !((self == .sites || self == .docker || self == .apps) && t == .allContainers)
     }
 
     static func tabs(_ t: MachineTarget) -> [AppSection] { allCases.filter { $0.shows(on: t) } }

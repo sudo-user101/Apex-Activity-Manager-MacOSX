@@ -24,7 +24,7 @@ struct ContentView: View {
                     case .startup: StartupView()
                     case .users: UsersView()
                     case .services: ServicesView()
-                    case .report, .sites, .docker, .manage: EmptyView()   // servers only
+                    case .report, .sites, .docker, .apps, .manage: EmptyView()   // servers only
                     }
                 }
             }

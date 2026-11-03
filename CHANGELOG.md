@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.6.0 (2026-11-03)
+
+- **Apps** (a server with Apex Server Edition 1.3): every WordPress site,
+  in Docker or installed on the server, and Ghost, Nextcloud, Gitea,
+  Grafana, MinIO, Node.js and the databases (MySQL, MariaDB, PostgreSQL,
+  Redis, MongoDB), grouped by kind, sites first, each with the domains it
+  serves; stopped containers marked.
+- **Server Edition updates:** Manage shows the server's Apex Server
+  Edition version, "Version X is available" with **Update**, and **Check
+  Now**. Servers on 1.2 or earlier get the command to update them once by
+  hand.
+- **Startup:** apps that open at login were missing on recent macOS (the
+  list Apex read now needs the administrator password). They come from
+  System Events now, with who made each from its signature; **Show
+  Background Items** lists the rest, after macOS asks for your password.
+
 ## 1.5.0 (2026-10-30)
 
 - **Manage** (a server with Apex Server Edition 1.2): a control panel for

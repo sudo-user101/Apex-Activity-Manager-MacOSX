@@ -293,6 +293,7 @@ struct RemotePage: View {
             if section == .report { FleetReportView(containers: false) }
             else if section == .sites { SitesView(serverID: nil) }
             else if section == .docker { DockerView(serverID: nil) }
+            else if section == .apps { AppsView(serverID: nil) }
             else { ServersOverview() }
         case .allContainers: if section == .report { FleetReportView(containers: true) } else { ContainersOverview() }
         case .server(let id):
@@ -302,6 +303,8 @@ struct RemotePage: View {
                 SitesView(serverID: id)
             } else if section == .docker, store.config(id) != nil {
                 DockerView(serverID: id)
+            } else if section == .apps, store.config(id) != nil {
+                AppsView(serverID: id)
             } else if section == .manage, let s = store.config(id) {
                 ManageView(server: s)
             } else if let s = store.config(id) {

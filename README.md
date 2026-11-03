@@ -223,8 +223,9 @@ verification afterwards.
 ### Startup, the whole picture
 
 - Everything that starts automatically in one list: apps that open at login,
-  background items apps registered with macOS, and launch agents and
-  daemons, with readable names, icons, what each costs while running, and
+  launch agents and daemons, and (on request, since macOS asks for your
+  password to list them) background items apps registered with macOS, with
+  readable names, who made each, icons, what each costs while running, and
   on/off where macOS allows it.
 - Add App to open any app at login.
 
@@ -282,6 +283,12 @@ this Mac, its websites and its Docker containers. Pair a server with
 - **Docker Management:** containers by stack and the manager running them
   (Dockge, Portainer, Compose), logs, updates, compose files, images,
   volumes and networks.
+- **Apps:** every WordPress site, in Docker or installed on the server,
+  and Ghost, Nextcloud, Gitea, Grafana, Node.js and the databases, grouped
+  by kind, each with the domains it serves.
+- **Updates:** Server Edition 1.3 keeps itself up to date (signed releases
+  only, and it goes back to the old version if a new one doesn't start);
+  Manage shows its version with an Update button.
 
 <p align="center">
   <img src="docs/images/server-terminal.png" width="49%" alt="Manage › Terminal: htop running full screen in Apex's own terminal on a server" />
@@ -291,6 +298,10 @@ this Mac, its websites and its Docker containers. Pair a server with
 <p align="center">
   <img src="docs/images/server-sites.png" width="49%" alt="Sites: four websites with where they forward, certificate days left and traffic, one certificate ending soon" />
   <img src="docs/images/server-docker.png" width="49%" alt="Docker Management: stacks run by Dockge and Portainer with their containers, ports, CPU and memory" />
+</p>
+
+<p align="center">
+  <img src="docs/images/server-apps.png" width="49%" alt="Apps: WordPress sites in Docker and on the server with their domains, then MariaDB, PostgreSQL and Redis" />
 </p>
 
 ## Install

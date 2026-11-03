@@ -1,7 +1,11 @@
 import SwiftUI
 
 /// Last loaded results, so revisiting the tab is instant.
-@MainActor enum StartupCache { static var items: [StartupItem]? }
+@MainActor enum StartupCache {
+    static var items: [StartupItem]?
+    /// Background items, once asked for (reading them needs the administrator password).
+    static var background: [BTMRecord]?
+}
 
 struct StartupView: View {
     @Environment(AppModel.self) private var model
@@ -12,6 +16,8 @@ struct StartupView: View {
     @State private var sortOrder = [KeyPathComparator(\StartupItem.displayName)]
     @State private var error: String?
     @State private var search = ""
+    @State private var note: String?
+    @State private var readingBackground = false
 
     var body: some View {
         let shown = items.filter {
@@ -80,7 +86,13 @@ struct StartupView: View {
                 }
             }
         }
-        .overlay { if loading { ProgressView() } else if items.isEmpty { ContentUnavailableView("No Startup Items", systemImage: "power") } }
+        .overlay { if loading || readingBackground { ProgressView() } else if items.isEmpty { ContentUnavailableView("No Startup Items", systemImage: "power") } }
+        .safeAreaInset(edge: .bottom) {
+            if let note {
+                Label(note, systemImage: "exclamationmark.triangle").font(.callout).foregroundStyle(.orange)
+                    .frame(maxWidth: .infinity, alignment: .leading).padding(10).background(.bar)
+            }
+        }
         .searchable(text: $search, placement: .toolbar, prompt: "Search")
         .navigationSubtitle("\(items.filter(\.enabled).count) of \(items.count) enabled")
         .toolbar {
@@ -90,6 +102,11 @@ struct StartupView: View {
                 Button { openLoginItems() } label: { Label("Login Items Settings", systemImage: "person.crop.circle.badge.checkmark") }
                     .help("Open System Settings › General › Login Items")
                 Button { Task { await load() } } label: { Label("Refresh", systemImage: "arrow.clockwise") }
+                if StartupCache.background == nil {
+                    Button { showBackground() } label: { Label("Show Background Items", systemImage: "gearshape.2") }
+                        .help("Also list what apps run in the background (System Settings › Login Items › Allow in the Background). macOS asks for your administrator password to read that list.")
+                        .disabled(readingBackground)
+                }
             }
         }
         .alert("Couldn’t change startup item", isPresented: Binding(get: { error != nil }, set: { if !$0 { error = nil } })) {
@@ -110,20 +127,40 @@ struct StartupView: View {
         return ("Low", .green, detail)
     }
 
-    /// Plist items first (instant), then macOS's own Login Items list (~4 s).
+    /// Plist items first (instant), then apps that open at login (System
+    /// Events, under a second), and background items if they were asked for.
     private func load() async {
         loading = items.isEmpty
         let plists = await Task.detached(priority: .userInitiated) { StartupItems.load() }.value
-        let previous = items.filter(\.fromLoginItems)
-        items = plists + previous
+        items = plists + items.filter(\.fromLoginItems)
         loading = false
         let running = Dictionary(NSWorkspace.shared.runningApplications.compactMap { a in a.bundleIdentifier.map { ($0, a.processIdentifier) } },
                                  uniquingKeysWith: { a, _ in a })
-        let records = await Task.detached(priority: .utility) { BackgroundItems.read() }.value
-        let extra = BackgroundItems.startupItems(records, runningApps: running)
-            .filter { e in !plists.contains { $0.label == e.label } }
-        items = plists + extra
+        var extra: [StartupItem] = []
+        switch await Task.detached(priority: .userInitiated, operation: { BackgroundItems.loginApps(runningApps: running) }).value {
+        case .items(let apps): extra = apps; note = nil
+        case .refused(let why): note = why
+        }
+        if let records = StartupCache.background {
+            extra += BackgroundItems.startupItems(records, runningApps: running)
+        }
+        items = plists + extra.filter { e in !plists.contains { $0.label == e.label } }
         StartupCache.items = items
+    }
+
+    /// Reads macOS's background items list; macOS asks for the administrator password.
+    private func showBackground() {
+        readingBackground = true
+        Task {
+            let records = await Task.detached(priority: .userInitiated) { BackgroundItems.read() }.value
+            readingBackground = false
+            if records.isEmpty {
+                note = "macOS didn’t give the background items (the password was cancelled, or it refused)."
+                return
+            }
+            StartupCache.background = records
+            await load()
+        }
     }
 
     private func toggle(_ item: StartupItem, _ on: Bool) {

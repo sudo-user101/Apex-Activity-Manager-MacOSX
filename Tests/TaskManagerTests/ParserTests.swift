@@ -163,11 +163,30 @@ final class BackgroundItemsTests: XCTestCase {
 
     func testStartupRows() {
         let rows = BackgroundItems.startupItems(BackgroundItems.parse(dump, uid: 501), runningApps: ["com.fiplab.clipboard": 42])
-        XCTAssertEqual(rows.map(\.scope), [.openAtLogin, .background])   // Tailscale itself isn't set to open; legacy agents come from plists
-        XCTAssertEqual(rows[0].pid, 42)
-        XCTAssertEqual(rows[0].iconPath, "/Applications/CopyClip.app")
-        XCTAssertTrue(rows[1].displayName.hasPrefix("Tailscale ("))
-        XCTAssertEqual(rows[1].iconPath, "/Applications/Tailscale.app")
-        XCTAssertEqual(rows[1].statusText, "Allowed")
+        // Open-at-login apps come from System Events now; legacy agents come from plists.
+        XCTAssertEqual(rows.map(\.scope), [.background])
+        XCTAssertTrue(rows[0].displayName.hasPrefix("Tailscale ("))
+        XCTAssertEqual(rows[0].iconPath, "/Applications/Tailscale.app")
+        XCTAssertEqual(rows[0].statusText, "Allowed")
+    }
+
+    func testLoginAppsFromSystemEvents() {
+        let text = "Superwhisper\tmissing value\nApex Activity Manager\t/Applications/Apex Activity Manager.app\nNextcloud\t/Applications/Nextcloud.app\nNextcloud\t/Applications/Nextcloud.app\n\n"
+        let r = BackgroundItems.parseLoginApps(text)
+        XCTAssertEqual(r.map(\.name), ["Superwhisper", "Apex Activity Manager", "Nextcloud"])
+        XCTAssertNil(r[0].path)
+        XCTAssertEqual(r[1].path, "/Applications/Apex Activity Manager.app")
+    }
+
+    func testVendorFromSignature() {
+        XCTAssertEqual(BackgroundItems.organization(fromCertificateSummary: "Developer ID Application: SuperUltra, Inc. (ABCDE12345)"), "SuperUltra, Inc.")
+        XCTAssertEqual(BackgroundItems.organization(fromCertificateSummary: "Developer ID Application: Nextcloud GmbH (NKUJUXUJ3B)"), "Nextcloud GmbH")
+        XCTAssertNil(BackgroundItems.organization(fromCertificateSummary: "Software Signing"))
+        // Apex is ad-hoc signed: its vendor comes from its bundle ID.
+        XCTAssertEqual(BackgroundItems.vendor(appPath: "", bundleID: "com.taskmanager.mac.native"), "CyberNet Labs")
+        // A real signed app on this Mac, when there is one.
+        if FileManager.default.fileExists(atPath: "/Applications/Nextcloud.app") {
+            XCTAssertEqual(BackgroundItems.vendor(appPath: "/Applications/Nextcloud.app", bundleID: "com.nextcloud.desktopclient"), "Nextcloud GmbH")
+        }
     }
 }

@@ -79,6 +79,9 @@ final class ServerScreenshotTests: XCTestCase {
         UserDefaults.standard.set("containers", forKey: "dockerPane")
         try await shoot(DockerView(serverID: web.id), dir + "/server-docker.png")
         UserDefaults.standard.removeObject(forKey: "dockerPane")
+
+        AppsStore.shared.use(try JSONDecoder().decode(AppsReport.self, from: Data(Self.sampleApps.utf8)), for: web.id)
+        try await shoot(AppsView(serverID: web.id), dir + "/server-apps.png")
         AppModel.shared.target = .mac
     }
 
@@ -96,6 +99,18 @@ final class ServerScreenshotTests: XCTestCase {
        "traffic":{"requests":96,"window":600,"perMinute":9.6,"bytes":2100000,"statuses":{"2xx":96}}},
       {"id":"4","proxy":"nginx","domains":["old.example.com"],"targets":["Files in /var/www/old"],"https":false,"enabled":false,"managed":false,"canToggle":true}
      ]}
+    """
+
+    static let sampleApps = """
+    {"apps":[
+      {"kind":"wordpress","label":"WordPress","instances":[
+        {"name":"blog","source":"docker","details":"wordpress:6.6-apache","domains":["blog.example.com","www.blog.example.com"]},
+        {"name":"shop.example.com","source":"native","details":"WordPress 6.5.5 · /var/www/shop.example.com","domains":["shop.example.com"]},
+        {"name":"staging","source":"docker","details":"wordpress:6.6-apache","stopped":true}]},
+      {"kind":"mariadb","label":"MariaDB","instances":[{"name":"wp-db","source":"docker","details":"mariadb:11.4"},{"name":"mariadb","source":"native","details":"mariadb  Ver 15.1 Distrib 10.11.6-MariaDB"}]},
+      {"kind":"postgres","label":"PostgreSQL","instances":[{"name":"shop-db-1","source":"docker","details":"postgres:16"}]},
+      {"kind":"redis","label":"Redis","instances":[{"name":"cache","source":"docker","details":"redis:7-alpine"}]}],
+     "taken":0}
     """
 
     static let sampleDocker = """
