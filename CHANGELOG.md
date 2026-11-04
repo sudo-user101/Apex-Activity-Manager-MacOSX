@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.6.3 (2026-11-04)
+
+- **Keychain:** macOS's password box no longer keeps coming back after an
+  update. Apex reads each saved login once per launch, so it asks at most once
+  for each one. Choose Always Allow.
+
 ## 1.6.2 (2026-11-04)
 
 Crash fixes, safer error messages and security fixes. No new features.

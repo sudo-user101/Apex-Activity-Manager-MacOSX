@@ -360,6 +360,7 @@ enum Keychain {
     /// Saves it; the status says whether it worked (errSecSuccess).
     @discardableResult
     static func set(_ password: String, account: String) -> OSStatus {
+        readings.forget(account)
         var status = write(password, account)
         if status == errSecDuplicateItem || status == errSecAuthFailed || status == errSecInteractionNotAllowed {
             status = write(password, account + copyMark)      // the plain one is another copy's
@@ -380,6 +381,29 @@ enum Keychain {
     /// The value, or why not (errSecItemNotFound: never saved; anything else:
     /// saved, but this copy may not read it).
     static func read(account: String) -> (value: String?, status: OSStatus) {
+        readings.answer(account) { lookUp(account) }
+    }
+
+    /// Reading an item another build saved shows macOS's password box, and Apex
+    /// reads a server's token for every request. So each item is read once per
+    /// launch, whatever the answer: the box can't keep coming back.
+    static let readings = Readings()
+    final class Readings: @unchecked Sendable {
+        private var known: [String: (value: String?, status: OSStatus)] = [:]
+        private let lock = NSLock()
+
+        /// Held for the whole read, so two threads can't both show the box.
+        func answer(_ account: String, read: () -> (value: String?, status: OSStatus)) -> (value: String?, status: OSStatus) {
+            lock.lock(); defer { lock.unlock() }
+            if let k = known[account] { return k }
+            let r = read()
+            if r.status != errSecItemNotFound { known[account] = r }
+            return r
+        }
+        func forget(_ account: String) { lock.lock(); known[account] = nil; lock.unlock() }
+    }
+
+    private static func lookUp(_ account: String) -> (value: String?, status: OSStatus) {
         var first = errSecItemNotFound
         for a in [account + copyMark, account] {
             var q = query(a)
@@ -394,6 +418,7 @@ enum Keychain {
     }
 
     static func remove(account: String) {
+        readings.forget(account)
         SecItemDelete(query(account + copyMark) as CFDictionary)
         SecItemDelete(query(account) as CFDictionary)
     }

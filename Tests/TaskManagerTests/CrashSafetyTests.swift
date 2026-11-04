@@ -126,6 +126,23 @@ final class CrashSafetyTests: XCTestCase {
         XCTAssertEqual(ShelfTab.moveToTrash([URL(fileURLWithPath: "/no/such/file")]), 1)
     }
 
+    func testTheKeychainIsAskedOncePerLaunch() {
+        let r = Keychain.Readings()
+        var asked = 0
+        func read(_ answer: (value: String?, status: OSStatus)) -> OSStatus {
+            r.answer("a") { asked += 1; return answer }.status
+        }
+        _ = read(("secret", errSecSuccess)); _ = read(("secret", errSecSuccess))
+        XCTAssertEqual(asked, 1, "the box isn't shown for every read")
+        r.forget("a"); asked = 0
+        XCTAssertEqual(read((nil, errSecAuthFailed)), errSecAuthFailed)
+        _ = read((nil, errSecAuthFailed))
+        XCTAssertEqual(asked, 1, "Deny isn't asked again in a loop")
+        r.forget("a"); asked = 0
+        _ = read((nil, errSecItemNotFound)); _ = read((nil, errSecItemNotFound))
+        XCTAssertEqual(asked, 2, "not saved yet costs nothing, and a later save is seen")
+    }
+
     private struct Seeded {
         var state: UInt64
         init(_ seed: UInt64) { state = seed }
