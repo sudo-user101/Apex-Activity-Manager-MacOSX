@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.6.1 (2026-11-04)
+
+- **Shelf:** a picture dragged from a browser goes on the shelf at full
+  size. Browsers hand over only a thumbnail (a Google Images result gives
+  225 × 225), so Apex downloads the original from the site (the picture
+  behind an image search result, or the one on the page); if the site
+  refuses, the thumbnail goes on instead.
+
 ## 1.6.0 (2026-11-03)
 
 - **Apps** (a server with Apex Server Edition 1.3): every WordPress site,

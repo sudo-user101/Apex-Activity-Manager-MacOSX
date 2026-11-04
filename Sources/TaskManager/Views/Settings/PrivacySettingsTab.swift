@@ -41,5 +41,6 @@ struct PrivacySettingsTab: View {
         ("AI providers", "Only the provider you pick, with your own key, when you ask a question."),
         ("Check on VirusTotal", "Only when you click it: the file’s fingerprint, opened in your browser."),
         ("Servers you add", "Only the servers you add, over SSH or Server Edition."),
+        ("Pictures dropped from a browser", "Only when you drop one on a shelf: the picture itself, from the site it’s on."),
     ]
 }

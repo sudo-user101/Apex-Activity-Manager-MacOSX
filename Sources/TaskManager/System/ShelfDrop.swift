@@ -88,7 +88,10 @@ import UniformTypeIdentifiers
         // 1. Files (Finder, the desktop, most apps; also file links from editors).
         let urls = pb.readObjects(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true]) as? [URL] ?? []
         if !urls.isEmpty { check(urls, into: &out); done(out); return 0 }
-        // 2. Files the app writes only when they're dropped.
+        // 2. A picture from a web page: the browser hands over a thumbnail
+        // (Google Images: 225 × 225), so Apex fetches the picture itself.
+        if let web = webImage(pb) { return receive(web, into: folder, out, done) }
+        // 3. Files the app writes only when they're dropped.
         if let promises = pb.readObjects(forClasses: [NSFilePromiseReceiver.self]) as? [NSFilePromiseReceiver], !promises.isEmpty {
             return receive(promises, into: folder, out, done)
         }
@@ -189,6 +192,144 @@ import UniformTypeIdentifiers
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + promiseTimeout) { MainActor.assumeIsolated { pending.finish() } }
         return expected
+    }
+
+    // MARK: Pictures from web pages
+
+    struct WebImage {
+        var candidates: [URL]
+        var thumbnail: (data: Data, ext: String)?
+        var promises: [NSFilePromiseReceiver]
+        var name: String?
+    }
+
+    /// A browser drag of a picture: a web address, and a picture or a promised picture.
+    static func webImage(_ pb: NSPasteboard) -> WebImage? {
+        guard let item = pb.pasteboardItems?.first else { return nil }
+        let link = item.string(forType: .URL) ?? item.string(forType: .init("public.url"))
+        guard let link, let scheme = URL(string: link)?.scheme?.lowercased(), ["http", "https"].contains(scheme) else { return nil }
+        let promises = pb.readObjects(forClasses: [NSFilePromiseReceiver.self]) as? [NSFilePromiseReceiver] ?? []
+        let promisedImage = promises.contains { $0.fileTypes.contains { UTType($0)?.conforms(to: .image) == true } }
+        let thumb = bestImageData(pb)
+        guard thumb != nil || promisedImage else { return nil }
+        let html = pb.string(forType: .html) ?? webArchiveHTML(pb)
+        let cands = webImageCandidates(link: link, html: html)
+        guard !cands.isEmpty else { return nil }
+        return WebImage(candidates: cands, thumbnail: thumb, promises: promisedImage ? promises : [],
+                        name: item.string(forType: .init("public.url-name")))
+    }
+
+    /// Where the full picture is, best first: the original behind an image
+    /// search result (Google `imgurl`, Bing `mediaurl`…), the link itself when
+    /// it's a picture, then the `<img>` the page showed. Pure: tested.
+    nonisolated static func webImageCandidates(link: String, html: String?) -> [URL] {
+        var out: [URL] = []
+        func add(_ s: String?) {
+            guard let s, let u = URL(string: s), let sc = u.scheme?.lowercased(), sc == "https" || sc == "http",
+                  !out.contains(u) else { return }
+            out.append(u)
+        }
+        if let comps = URLComponents(string: link) {
+            for q in comps.queryItems ?? [] where ["imgurl", "mediaurl", "img_url", "imageurl", "image_url"].contains(q.name.lowercased()) { add(q.value) }
+            if comps.host?.contains("duckduckgo.com") == true { add(comps.queryItems?.first { $0.name == "u" }?.value) }
+            if imageExtensions.contains((comps.path as NSString).pathExtension.lowercased()) { add(link) }
+        }
+        if let html, let r = try? NSRegularExpression(pattern: #"<img\b[^>]*?\bsrc\s*=\s*["']([^"']+)["']"#, options: .caseInsensitive) {
+            for m in r.matches(in: html, range: NSRange(html.startIndex..., in: html)) {
+                if let rg = Range(m.range(at: 1), in: html) { add(String(html[rg]).replacingOccurrences(of: "&amp;", with: "&")) }
+            }
+        }
+        return out
+    }
+
+    nonisolated static let imageExtensions: Set<String> = ["jpg", "jpeg", "png", "gif", "webp", "heic", "heif", "avif", "tif", "tiff", "bmp"]
+
+    private static func webArchiveHTML(_ pb: NSPasteboard) -> String? {
+        guard let d = pb.data(forType: .init("com.apple.webarchive")),
+              let p = try? PropertyListSerialization.propertyList(from: d, format: nil) as? [String: Any],
+              let main = p["WebMainResource"] as? [String: Any], let h = main["WebResourceData"] as? Data else { return nil }
+        return String(data: h, encoding: .utf8)
+    }
+
+    /// The largest picture on the pasteboard, in its own bytes when it's a common format.
+    static func bestImageData(_ pb: NSPasteboard) -> (data: Data, ext: String)? {
+        var best: (Data, String, Int)?
+        for (t, ext) in [(UTType.png, "png"), (.jpeg, "jpg"), (.heic, "heic"), (.gif, "gif"), (.webP, "webp")] {
+            if let d = pb.data(forType: .init(t.identifier)), let r = NSBitmapImageRep(data: d), r.pixelsWide * r.pixelsHigh > best?.2 ?? 0 {
+                best = (d, ext, r.pixelsWide * r.pixelsHigh)
+            }
+        }
+        if let d = pb.data(forType: .tiff), let r = NSBitmapImageRep(data: d), r.pixelsWide * r.pixelsHigh > best?.2 ?? 0,
+           let png = r.representation(using: .png, properties: [:]) {
+            best = (png, "png", r.pixelsWide * r.pixelsHigh)
+        }
+        return best.map { ($0.0, $0.1) }
+    }
+
+    /// Tests point downloads elsewhere.
+    nonisolated(unsafe) static var session = URLSession(configuration: {
+        let c = URLSessionConfiguration.ephemeral
+        c.timeoutIntervalForRequest = 15; c.timeoutIntervalForResource = 60
+        return c
+    }())
+
+    /// The picture at `url`: only if the site says it's a picture and it opens as one (50 MB at most).
+    nonisolated static func download(_ url: URL) async -> (data: Data, ext: String, name: String)? {
+        var req = URLRequest(url: url)
+        req.setValue("image/*,*/*;q=0.5", forHTTPHeaderField: "Accept")
+        guard let (data, resp) = try? await session.data(for: req), let http = resp as? HTTPURLResponse,
+              http.statusCode == 200, data.count < 50 << 20,
+              let mime = http.mimeType, mime.hasPrefix("image/"), NSImage(data: data) != nil else { return nil }
+        let ext = UTType(mimeType: mime)?.preferredFilenameExtension ?? (url.pathExtension.isEmpty ? "jpg" : url.pathExtension)
+        let base = (url.lastPathComponent as NSString).deletingPathExtension
+        return (data, ext == "jpeg" ? "jpg" : ext, base)
+    }
+
+    private static func receive(_ web: WebImage, into folder: URL, _ start: Outcome,
+                                _ done: @escaping @MainActor (Outcome) -> Void) -> Int {
+        // No picture on the pasteboard: take the browser's promised file now,
+        // while the drag is still on, in case the download fails.
+        final class Box: @unchecked Sendable { let lock = NSLock(); var url: URL? }
+        let promisedBox = Box()
+        let promiseDone = DispatchGroup()
+        if web.thumbnail == nil, !web.promises.isEmpty {
+            let dest = folder.appendingPathComponent("Dropped \(UUID().uuidString.prefix(8))", isDirectory: true)
+            try? FileManager.default.createDirectory(at: dest, withIntermediateDirectories: true)
+            let q = OperationQueue()
+            for p in web.promises {
+                promiseDone.enter()
+                p.receivePromisedFiles(atDestination: dest, options: [:], operationQueue: q) { url, error in
+                    if error == nil, ((try? url.resourceValues(forKeys: [.fileSizeKey]))?.fileSize ?? 0) > 0 {
+                        promisedBox.lock.lock(); promisedBox.url = url; promisedBox.lock.unlock()
+                    }
+                    promiseDone.leave()
+                }
+            }
+        }
+        let candidates = web.candidates, thumb = web.thumbnail, title = web.name
+        Task {
+            var got: (data: Data, ext: String, name: String)?
+            for u in candidates { if let d = await download(u) { got = d; break } }
+            if got == nil, !web.promises.isEmpty, thumb == nil {
+                _ = await withCheckedContinuation { c in promiseDone.notify(queue: .global()) { c.resume(returning: true) } }
+            }
+            promisedBox.lock.lock(); let promised = promisedBox.url; promisedBox.lock.unlock()
+            await MainActor.run {
+                var out = start
+                let name = title.map(safeName) ?? got.map(\.name).flatMap { $0.isEmpty ? nil : $0 } ?? "Image \(stamp())"
+                if let got, let u = save(got.data, named: name, ext: got.ext, in: folder) {
+                    out.files = [u]
+                } else if let promised {
+                    out.files = [promised]
+                } else if let thumb, let u = save(thumb.data, named: name, ext: thumb.ext, in: folder) {
+                    out.files = [u]
+                } else {
+                    out.notDelivered = 1
+                }
+                done(out)
+            }
+        }
+        return 1
     }
 
     // MARK: Pictures, links and text with no file: Apex saves them
