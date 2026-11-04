@@ -83,7 +83,8 @@ enum ArchiveList {
             let p = clean(raw)
             if !p.isEmpty {
                 let m = l.mtime(e)
-                out.append(Item(path: p, size: UInt64(max(0, l.size(e))), isFolder: l.type(e) == folderType || raw.hasSuffix("/"),
+                // An archive can claim any size, and adding those up must not overflow.
+                out.append(Item(path: p, size: UInt64(min(1 << 45, max(0, l.size(e)))), isFolder: l.type(e) == folderType || raw.hasSuffix("/"),
                                 modified: m > 0 ? Date(timeIntervalSince1970: TimeInterval(m)) : nil))
             }
             _ = l.skip(a)
@@ -117,7 +118,10 @@ enum ArchiveList {
                     if why.lowercased().contains("passphrase") || why.lowercased().contains("encrypt") { throw Failure.needsPassword }
                     throw Failure.unreadable(why)
                 }
-                out.write(Data(buffer[0..<n]))
+                do { try out.write(contentsOf: Data(buffer[0..<n])) } catch {   // a full disk, for one
+                    try? FileManager.default.removeItem(at: destination)
+                    throw error
+                }
             }
         }
         throw Failure.unreadable("“\((path as NSString).lastPathComponent)” isn’t in it.")
@@ -145,7 +149,8 @@ enum ArchiveList {
             if let slash = rest.firstIndex(of: "/") {
                 let name = String(rest[..<slash])
                 var f = folders[name] ?? (0, nil)
-                f.size += i.isFolder ? 0 : i.size
+                let sum = f.size.addingReportingOverflow(i.isFolder ? 0 : i.size)
+                f.size = sum.overflow ? .max : sum.partialValue
                 folders[name] = f
             } else if i.isFolder {
                 var f = folders[rest] ?? (0, nil)

@@ -412,7 +412,7 @@ struct DriveHealthCard: View {
                         item("Connected", "\(Fmt.duration(r.secondsConnected)) over \(r.sessions) \(r.sessions == 1 ? "time" : "times")")
                         item("Busy", Fmt.duration(r.activeSeconds))
                     }
-                    item(r.isStartup ? "Moved while watched" : "Data moved", "\(Fmt.diskBytes(UInt64(r.bytesRead))) read · \(Fmt.diskBytes(UInt64(r.bytesWritten))) written")
+                    item(r.isStartup ? "Moved while watched" : "Data moved", "\(Fmt.diskBytes(UInt64(saturating: r.bytesRead))) read · \(Fmt.diskBytes(UInt64(saturating: r.bytesWritten))) written")
                     item("Large transfers", r.transfers.isEmpty ? "None yet" : "\(r.transfers.count)")
                     if r.bestReadMBps > 0 { item("Best read speed", String(format: "%.0f MB/s", r.bestReadMBps)) }
                     if r.bestWriteMBps > 0 { item("Best write speed", String(format: "%.0f MB/s", r.bestWriteMBps)) }

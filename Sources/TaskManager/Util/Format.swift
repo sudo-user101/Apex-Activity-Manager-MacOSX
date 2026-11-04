@@ -48,7 +48,7 @@ enum Fmt {
 
     /// Short time format used everywhere: "30s", "45m", "2h 5m", "3d 4h".
     static func duration(_ t: TimeInterval) -> String {
-        let s = max(0, Int(t.rounded()))
+        let s = max(0, Int(saturating: t.rounded()))
         let d = s / 86400, h = (s % 86400) / 3600, m = (s % 3600) / 60, sec = s % 60
         if d > 0 { return h > 0 ? "\(d)d \(h)h" : "\(d)d" }
         if h > 0 { return m > 0 ? "\(h)h \(m)m" : "\(h)h" }
@@ -64,4 +64,27 @@ enum Fmt {
         f.timeStyle = .medium
         return f
     }()
+}
+
+extension FixedWidthInteger {
+    /// Int(x) stops the app on NaN, infinity or a value that doesn't fit. Values
+    /// from outside Apex go through this: the nearest number, or 0 for NaN.
+    init(saturating v: Double) {
+        if v.isNaN { self = 0 }
+        else if v >= Double(Self.max) { self = .max }
+        else if v <= Double(Self.min) { self = .min }
+        else { self = Self(v) }
+    }
+}
+
+/// Switches that can send a saved key to another server: debug builds only, so
+/// nothing can set them on a copy someone downloaded.
+enum TestSwitch {
+    static func value(_ name: String) -> String? {
+        #if DEBUG
+        ProcessInfo.processInfo.environment[name]
+        #else
+        nil
+        #endif
+    }
 }

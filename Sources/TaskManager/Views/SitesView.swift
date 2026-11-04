@@ -305,7 +305,7 @@ private struct SiteTable: View {
         if let t = site.traffic {
             VStack(alignment: .leading, spacing: 1) {
                 Text(t.perMinute < 10 ? String(format: "%.1f a min", t.perMinute) : "\(Int(t.perMinute.rounded())) a min").font(.caption).monospacedDigit()
-                Text(t.serverErrors > 0 ? "\(t.serverErrors) failed · \(Fmt.bytes(UInt64(t.bytes)))" : Fmt.bytes(UInt64(t.bytes)))
+                Text(t.serverErrors > 0 ? "\(t.serverErrors) failed · \(Fmt.bytes(UInt64(clamping: t.bytes)))" : Fmt.bytes(UInt64(clamping: t.bytes)))
                     .font(.caption).foregroundStyle(t.serverErrors > 0 ? .orange : .secondary).monospacedDigit()
             }
         } else {

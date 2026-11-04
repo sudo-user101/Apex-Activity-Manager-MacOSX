@@ -12,6 +12,15 @@ enum Shell {
 
     struct Result { var launched: Bool; var status: Int32; var stdout: String; var stderr: String }
 
+    /// Writing to a program that has quit must fail, not stop Apex. Once, at launch.
+    static func ignoreBrokenPipes() { signal(SIGPIPE, SIG_IGN) }
+
+    /// False if the program didn't take it (it quit, usually). Its exit status says why.
+    @discardableResult
+    static func send(_ data: Data, to handle: FileHandle) -> Bool {
+        (try? handle.write(contentsOf: data)) != nil
+    }
+
     static func run(_ path: String, _ args: [String]) -> Result {
         let p = Process()
         p.executableURL = URL(fileURLWithPath: path)

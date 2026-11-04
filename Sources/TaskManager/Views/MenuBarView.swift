@@ -567,13 +567,15 @@ struct ShelfTab: View {
         pendingBatch = nil; batch = nil
         if useCopies {
             for p in b.pairs { store.replace(path: p.original.path, with: p.copy) }
-            if trashOriginals { b.pairs.forEach { try? FileManager.default.trashItem(at: $0.original, resultingItemURL: nil) } }
+            let stuck = trashOriginals ? Self.moveToTrash(b.pairs.map(\.original)) : 0
             lastResult = (b.pairs[0].original, MediaCompressor.Result(url: b.pairs[0].original, before: b.before, after: b.after))
-            note = trashOriginals ? nil : "The shelf has the smaller copies. The originals are still where they were."
+            note = stuck > 0 ? "Couldn’t move \(Self.files(stuck)) to the Trash, so that space isn’t freed."
+                : trashOriginals ? nil : "The shelf has the smaller copies. The originals are still where they were."
         } else {
-            b.pairs.forEach { try? FileManager.default.trashItem(at: $0.copy, resultingItemURL: nil) }
+            let stuck = Self.moveToTrash(b.pairs.map(\.copy))
             lastResult = nil
-            note = "Kept the originals. The smaller copies are in the Trash."
+            note = stuck > 0 ? "Kept the originals, but couldn’t move \(Self.files(stuck)) to the Trash."
+                             : "Kept the originals. The smaller copies are in the Trash."
         }
     }
 
@@ -596,10 +598,17 @@ struct ShelfTab: View {
     /// Discard the compressed copy: off the shelf and into the Trash.
     private func discardCopy(_ pair: ComparePair) {
         if let c = store.shown.items.first(where: { $0.path == pair.copy.path }) { store.remove(c) }
-        try? FileManager.default.trashItem(at: pair.copy, resultingItemURL: nil)
+        let stuck = Self.moveToTrash([pair.copy])
         comparing = nil; lastResult = nil
-        note = "Discarded the compressed copy (it’s in the Trash)."
+        note = stuck > 0 ? "Couldn’t move \(pair.copy.lastPathComponent) to the Trash. It’s still in its folder."
+                         : "Discarded the compressed copy (it’s in the Trash)."
     }
+
+    /// How many couldn't be moved.
+    static func moveToTrash(_ urls: [URL]) -> Int {
+        urls.filter { (try? FileManager.default.trashItem(at: $0, resultingItemURL: nil)) == nil }.count
+    }
+    private static func files(_ n: Int) -> String { n == 1 ? "1 file" : "\(n) files" }
 
     private func title(_ shelf: ShelfSet) -> String {
         switch store.open {

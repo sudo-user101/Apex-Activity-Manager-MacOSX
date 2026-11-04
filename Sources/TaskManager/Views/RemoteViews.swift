@@ -228,7 +228,7 @@ struct RemotePerformanceView: View {
     private func summary(_ item: RemoteItem, _ s: ServerSnapshot) -> String {
         switch item {
         case .cpu: return String(format: "%.0f%%", s.cpu.total)
-        case .memory: return "\(Fmt.bytes(UInt64(s.memory.used))) / \(Fmt.bytes(UInt64(s.memory.total)))"
+        case .memory: return "\(Fmt.bytes(UInt64(clamping: s.memory.used))) / \(Fmt.bytes(UInt64(clamping: s.memory.total)))"
         case .disk: return "R \(Fmt.rate(s.disks.reduce(0) { $0 + ($1.readPerSec ?? 0) }))  W \(Fmt.rate(s.disks.reduce(0) { $0 + ($1.writePerSec ?? 0) }))"
         case .network: return "↓ \(Fmt.rate(s.network.reduce(0) { $0 + $1.inPerSec }))  ↑ \(Fmt.rate(s.network.reduce(0) { $0 + $1.outPerSec }))"
         case .gpu: return s.gpus?.first.map { String(format: "%.0f%%", $0.utilization) } ?? "—"
@@ -303,7 +303,7 @@ private struct RemoteDetail: View {
                 if !s.cpu.perCore.isEmpty { cores(s.cpu.perCore) }
                 processes("Busiest processes", s.processes.sorted { $0.cpu > $1.cpu }) { String(format: "%.1f%%", $0.cpu) }
             case .memory:
-                PageHeader(title: "Memory", subtitle: "\(Fmt.bytes(UInt64(s.memory.total))) total", showsRange: false)
+                PageHeader(title: "Memory", subtitle: "\(Fmt.bytes(UInt64(clamping: s.memory.total))) total", showsRange: false)
                 graph([.init(values: store.memHistory[server.id] ?? [], color: item.color)], max: 100, unit: .percent)
                 stats(Self.memoryRows(s))
                 processes("Using the most memory", s.processes.sorted { $0.memory > $1.memory }) { Fmt.bytes(UInt64($0.memory)) }
@@ -324,7 +324,7 @@ private struct RemoteDetail: View {
                             }
                             if d.total > 0 {
                                 ProgressView(value: d.percent, total: 100).tint(d.percent > 90 ? .red : d.percent > 80 ? .orange : .green)
-                                Text("\(Fmt.bytes(UInt64(d.free))) free of \(Fmt.bytes(UInt64(d.total))) · \(Int(d.percent))% used")
+                                Text("\(Fmt.bytes(UInt64(clamping: d.free))) free of \(Fmt.bytes(UInt64(clamping: d.total))) · \(Int(d.percent))% used")
                                     .font(.caption).foregroundStyle(.secondary).monospacedDigit()
                             } else {
                                 Text("Size not available from outside the container").font(.caption).foregroundStyle(.secondary)
@@ -347,7 +347,7 @@ private struct RemoteDetail: View {
                             Text("↓ \(Fmt.rate(n.inPerSec))  ↑ \(Fmt.rate(n.outPerSec))").monospacedDigit()
                             Spacer()
                             if let r = n.received, let t = n.sent {
-                                Text("received \(Fmt.bytes(UInt64(r))) · sent \(Fmt.bytes(UInt64(t)))").font(.caption).foregroundStyle(.secondary).monospacedDigit()
+                                Text("received \(Fmt.bytes(UInt64(clamping: r))) · sent \(Fmt.bytes(UInt64(clamping: t)))").font(.caption).foregroundStyle(.secondary).monospacedDigit()
                             }
                         }
                         .font(.callout)
@@ -359,7 +359,7 @@ private struct RemoteDetail: View {
                 graph([.init(values: store.gpuHistory[server.id] ?? [], color: item.color)], max: 100, unit: .percent)
                 ForEach(Array((s.gpus ?? []).enumerated()), id: \.offset) { _, g in
                     stats([("GPU", g.name), ("Utilization", String(format: "%.0f%%", g.utilization)),
-                           ("Memory", "\(Fmt.bytes(UInt64(g.memoryUsed))) of \(Fmt.bytes(UInt64(g.memoryTotal)))"),
+                           ("Memory", "\(Fmt.bytes(UInt64(clamping: g.memoryUsed))) of \(Fmt.bytes(UInt64(clamping: g.memoryTotal)))"),
                            ("Temperature", g.temperature.map { String(format: "%.0f °C", $0) } ?? "—")])
                 }
             case .containers:
@@ -400,10 +400,10 @@ private struct RemoteDetail: View {
     }
 
     static func memoryRows(_ s: ServerSnapshot) -> [(String, String)] {
-        var rows = [("Used", Fmt.bytes(UInt64(s.memory.used))), ("Available", Fmt.bytes(UInt64(s.memory.available))),
+        var rows = [("Used", Fmt.bytes(UInt64(clamping: s.memory.used))), ("Available", Fmt.bytes(UInt64(clamping: s.memory.available))),
                     ("In use", String(format: "%.0f%%", s.memory.percent))]
-        if let c = s.memory.cached, c > 0 { rows.append(("Cached", Fmt.bytes(UInt64(c)))) }
-        if let t = s.memory.swapTotal, let f = s.memory.swapFree, t > 0 { rows.append(("Swap used", "\(Fmt.bytes(UInt64(t - f))) of \(Fmt.bytes(UInt64(t)))")) }
+        if let c = s.memory.cached, c > 0 { rows.append(("Cached", Fmt.bytes(UInt64(clamping: c)))) }
+        if let t = s.memory.swapTotal, let f = s.memory.swapFree, t > 0 { rows.append(("Swap used", "\(Fmt.bytes(UInt64(t - f))) of \(Fmt.bytes(UInt64(clamping: t)))")) }
         return rows
     }
 
@@ -637,7 +637,7 @@ struct RemoteProcessesView: View {
                     TableColumn("PID", value: \.pid) { r in Text(String(r.pid)).monospacedDigit() }.width(70)
                     TableColumn("User", value: \.user) { r in Text(r.user).lineLimit(1) }.width(min: 70, ideal: 110)
                     TableColumn("CPU", value: \.cpu) { r in Text(String(format: "%.1f%%", r.cpu)).monospacedDigit() }.width(70)
-                    TableColumn("Memory", value: \.memory) { r in Text(Fmt.bytes(UInt64(r.memory))).monospacedDigit() }.width(90)
+                    TableColumn("Memory", value: \.memory) { r in Text(Fmt.bytes(UInt64(clamping: r.memory))).monospacedDigit() }.width(90)
                     TableColumn("Running for", value: \.seconds) { r in Text(r.seconds > 0 ? Fmt.duration(TimeInterval(r.seconds)) : "—").monospacedDigit() }.width(100)
                 }
                 .contextMenu(forSelectionType: Int.self) { ids in
@@ -795,7 +795,7 @@ struct RemoteUsersView: View {
                     TableColumn("Signed in") { r in Text(r.sessions.isEmpty ? "—" : r.sessions.joined(separator: ", ")).lineLimit(1) }
                     TableColumn("Processes") { r in Text("\(r.processes)").monospacedDigit() }.width(80)
                     TableColumn("CPU") { r in Text(String(format: "%.1f%%", r.cpu)).monospacedDigit() }.width(70)
-                    TableColumn("Memory") { r in Text(Fmt.bytes(UInt64(r.memory))).monospacedDigit() }.width(90)
+                    TableColumn("Memory") { r in Text(Fmt.bytes(UInt64(clamping: r.memory))).monospacedDigit() }.width(90)
                 }
             }
         } else {

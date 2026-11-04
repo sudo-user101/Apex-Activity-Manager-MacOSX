@@ -800,7 +800,10 @@ struct FolderPreviewView: View {
                 if reveal { NSWorkspace.shared.activateFileViewerSelecting([made]) }
             }
             if trashIt {
-                for part in ArchiveTools.splitParts(archive) ?? [archive] { try? FileManager.default.trashItem(at: part, resultingItemURL: nil) }
+                let parts = ArchiveTools.splitParts(archive) ?? [archive]
+                if parts.contains(where: { (try? FileManager.default.trashItem(at: $0, resultingItemURL: nil)) == nil }) {
+                    await MainActor.run { model.note = "Extracted to “\(made.lastPathComponent)”, but the archive couldn’t be moved to the Trash." }
+                }
             }
         }
     }

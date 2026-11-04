@@ -48,7 +48,7 @@ enum SwapScan {
                     // (phys_footprint, what the Memory column shows) instead.
                     let share = min(1, Double(swapped) / Double(dirty))
                     let total = p.memory
-                    let swappedOwned = UInt64(Double(total) * share)
+                    let swappedOwned = UInt64(saturating: Double(total) * share)
                     let key = p.appKey
                     var e = grouped[key] ?? SwapEntry(
                         key: key,

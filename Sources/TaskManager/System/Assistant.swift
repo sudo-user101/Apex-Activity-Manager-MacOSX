@@ -118,7 +118,7 @@ enum Assistant {
 
     /// Checks any provider's key and lists its chat models. Pure apart from the network.
     static func models(for k: CloudKey, secret: String) async throws -> [String] {
-        let base = ProcessInfo.processInfo.environment["APEX_ASSISTANT_BASE"] ?? k.base
+        let base = TestSwitch.value("APEX_ASSISTANT_BASE") ?? k.base
         switch k.provider.api {
         case .anthropic: return try await models(base: base, key: secret)
         case .openAI: return try await OpenAIChat.models(base: base, key: secret)
@@ -383,7 +383,7 @@ final class AssistantChat {
         let q = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !q.isEmpty, answering == nil, let k = keys.active, let secret = keys.secret(for: k) else { return }
         guard !k.model.isEmpty else { problem = "Pick a model for “\(k.title)” under Manage Keys."; return }
-        let base = ProcessInfo.processInfo.environment["APEX_ASSISTANT_BASE"] ?? k.base
+        let base = TestSwitch.value("APEX_ASSISTANT_BASE") ?? k.base
         let service = k.provider == .custom ? k.title : k.provider.shortName
         switch k.provider.api {
         case .openAI: askOpenAIStyle(q, service: service, base: base, key: secret, model: k.model, readings: readings)

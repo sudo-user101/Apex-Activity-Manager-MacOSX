@@ -1169,7 +1169,7 @@ final class MachineTests: XCTestCase {
 
     func testServersTabIsGone() {
         XCTAssertNil(AppSection(rawValue: "servers"), "a saved Servers tab opens Processes")
-        XCTAssertEqual(AppSection.allCases.filter(\.followsTarget), [.processes, .performance, .users, .services, .report, .sites, .docker, .manage])
+        XCTAssertEqual(AppSection.allCases.filter(\.followsTarget), [.processes, .performance, .users, .services, .report, .sites, .docker, .apps, .manage])
     }
 }
 

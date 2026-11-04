@@ -50,6 +50,8 @@ final class TerminalEmulator {
     private var params = ""
     private var oscText = ""
     private var utf8 = [UInt8]()
+    /// The longest control sequence or title kept: a program can send an endless one.
+    private static let maxSequence = 4096
 
     init(cols: Int = 80, rows: Int = 24) {
         self.cols = max(2, cols); self.rows = max(2, rows)
@@ -111,7 +113,7 @@ final class TerminalEmulator {
                 if utf8.count < need, b >= 0x80 { return }
                 let s = String(decoding: utf8, as: UTF8.self)
                 utf8.removeAll()
-                if state == .osc { oscText += s } else { for ch in s { put(ch) } }
+                if state == .osc { if oscText.count < Self.maxSequence { oscText += s } } else { for ch in s { put(ch) } }
                 return
             }
         }
@@ -119,14 +121,14 @@ final class TerminalEmulator {
         case .ground: control(b)
         case .esc: escape(b)
         case .csi:
-            if (0x30...0x3F).contains(b) || b == 0x20 { params.append(Character(UnicodeScalar(b))) }
+            if (0x30...0x3F).contains(b) || b == 0x20 { if params.count < Self.maxSequence { params.append(Character(UnicodeScalar(b))) } }
             else if (0x40...0x7E).contains(b) { csi(Character(UnicodeScalar(b))); state = .ground }
             else if b == 0x1B { state = .esc }
             else if b < 0x20 { control(b) }       // C0 inside CSI still works
         case .osc:
             if b == 0x07 { osc(); state = .ground }
             else if b == 0x1B { state = .oscEsc }
-            else { oscText.append(Character(UnicodeScalar(b))) }
+            else if oscText.count < Self.maxSequence { oscText.append(Character(UnicodeScalar(b))) }
         case .oscEsc:
             osc(); state = b == 0x5C ? .ground : .ground
         case .charset:
@@ -198,7 +200,9 @@ final class TerminalEmulator {
         // Combining marks join the previous cell.
         if ch.unicodeScalars.allSatisfy({ $0.properties.generalCategory == .nonspacingMark }) {
             let x = max(0, cursorX - (wrapPending ? 0 : 1))
-            grid[cursorY][x].ch = Character(String(grid[cursorY][x].ch) + String(ch))
+            // Some characters don't join a mark, and Character() stops the app on two.
+            let joined = String(grid[cursorY][x].ch) + String(ch)
+            if joined.count == 1, joined.unicodeScalars.count <= 16 { grid[cursorY][x].ch = Character(joined) }
             return
         }
         let wide = Self.isWide(ch)
@@ -245,7 +249,7 @@ final class TerminalEmulator {
         let priv = params.first.map { "?>=<".contains($0) } ?? false
         let marker = priv ? params.first! : nil
         let body = priv ? String(params.dropFirst()) : params
-        let p = body.split(separator: ";", omittingEmptySubsequences: false).map { Int($0.split(separator: ":").first ?? "") ?? -1 }
+        let p = body.split(separator: ";", omittingEmptySubsequences: false).map { min(65535, Int($0.split(separator: ":").first ?? "") ?? -1) }
         func arg(_ i: Int, _ d: Int = 1) -> Int { i < p.count && p[i] > 0 ? p[i] : d }
         func arg0(_ i: Int) -> Int { i < p.count && p[i] >= 0 ? p[i] : 0 }
         if final != "m" { wrapPending = false }
@@ -319,7 +323,7 @@ final class TerminalEmulator {
                 altScreen = true
             } else if !on, altScreen {
                 grid = mainGrid ?? grid; mainGrid = nil
-                if let c = mainCursor { cursorX = c.0; cursorY = c.1 }
+                if let c = mainCursor { cursorX = min(c.0, cols - 1); cursorY = min(c.1, rows - 1) }
                 altScreen = false
                 if m == 1049 { restoreCursor() }
             }

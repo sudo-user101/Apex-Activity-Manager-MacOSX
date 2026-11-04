@@ -114,7 +114,7 @@ enum PinnedHTTP {
             var out = Data(), i = body.startIndex
             while let lineEnd = body[i...].range(of: Data("\r\n".utf8)) {
                 let sizeText = String(decoding: body[i..<lineEnd.lowerBound], as: UTF8.self).split(separator: ";").first ?? ""
-                guard let n = Int(sizeText.trimmingCharacters(in: .whitespaces), radix: 16) else { return nil }
+                guard let n = Int(sizeText.trimmingCharacters(in: .whitespaces), radix: 16), n >= 0 else { return nil }
                 if n == 0 { break }
                 let start = lineEnd.upperBound
                 guard body.distance(from: start, to: body.endIndex) >= n else { return nil }
@@ -123,8 +123,8 @@ enum PinnedHTTP {
                 i = body.index(end, offsetBy: 2, limitedBy: body.endIndex) ?? body.endIndex
             }
             body = out
-        } else if let len = head.dropFirst().first(where: { $0.lowercased().hasPrefix("content-length:") }).flatMap({ Int($0.split(separator: ":")[1].trimmingCharacters(in: .whitespaces)) }),
-                  body.count > len {
+        } else if let len = head.dropFirst().first(where: { $0.lowercased().hasPrefix("content-length:") }).flatMap({ Int($0.dropFirst("content-length:".count).trimmingCharacters(in: .whitespaces)) }),
+                  len >= 0, body.count > len {
             body = body.prefix(len)
         }
         return (status, body)

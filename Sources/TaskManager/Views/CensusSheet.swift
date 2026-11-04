@@ -102,8 +102,8 @@ struct CensusSheet: View {
     private func format(_ r: Census.Resource, _ v: Double) -> String {
         switch r {
         case .cpu: return today ? Fmt.duration(v) : String(format: "%.1f%%", v)
-        case .memory: return Fmt.bytes(UInt64(v))
-        case .disk, .network: return today ? Fmt.diskBytes(UInt64(v)) : Fmt.rate(v)
+        case .memory: return Fmt.bytes(UInt64(saturating: v))
+        case .disk, .network: return today ? Fmt.diskBytes(UInt64(saturating: v)) : Fmt.rate(v)
         case .gpu: return String(format: "%.0f%%", v)
         case .energy: return today ? String(format: v / 3600 < 10 ? "%.1f Wh" : "%.0f Wh", v / 3600) : String(format: v < 10 ? "%.1f W" : "%.0f W", v)
         }

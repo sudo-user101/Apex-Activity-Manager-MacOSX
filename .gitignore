@@ -10,3 +10,10 @@ DerivedData/
 
 # macOS
 .DS_Store
+
+# Secrets never belong here
+.env
+.env.*
+*.pem
+*.key
+*.p12

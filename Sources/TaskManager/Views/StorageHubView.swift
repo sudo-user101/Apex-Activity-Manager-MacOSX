@@ -515,9 +515,9 @@ struct DriveStorageView: View {
         }
         .task(id: volumePath) { await rescan() }
         .confirmationDialog(confirm == .trash ? "Empty this drive’s Trash?" : "Remove macOS helper files?",
-                            isPresented: Binding(get: { confirm != nil }, set: { if !$0 { confirm = nil } })) {
-            Button(confirm == .trash ? "Empty Trash" : "Remove", role: .destructive) { remove(confirm!) }
-        } message: {
+                            isPresented: Binding(get: { confirm != nil }, set: { if !$0 { confirm = nil } }), presenting: confirm) { what in
+            Button(what == .trash ? "Empty Trash" : "Remove", role: .destructive) { remove(what) }
+        } message: { _ in
             if let s = scan {
                 Text(confirm == .trash ? "\(s.trash.count) items, \(Fmt.diskBytes(s.trashSize)), are deleted for good. This can’t be undone."
                                        : "\(s.helpers.count) helper files, \(Fmt.diskBytes(s.helperSize)). Your own files stay; only Finder tags and labels stored in these are lost.")

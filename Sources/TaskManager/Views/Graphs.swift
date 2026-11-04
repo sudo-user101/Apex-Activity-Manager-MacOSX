@@ -21,8 +21,8 @@ enum GraphUnit {
     case percent, rate, watts, celsius, bytes
     func format(_ v: Double) -> String {
         switch self {
-        case .bytes: return Fmt.bytes(UInt64(max(0, v)))
-        case .percent: return "\(Int(v.rounded()))%"
+        case .bytes: return Fmt.bytes(UInt64(saturating: max(0, v)))
+        case .percent: return "\(Int(saturating: v.rounded()))%"
         case .rate: return Fmt.rate(v)
         case .watts: return String(format: v < 10 ? "%.1f W" : "%.0f W", v)
         case .celsius: return String(format: "%.0f °C", v)

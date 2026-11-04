@@ -144,15 +144,15 @@ final class CloudStore {
     nonisolated static func bytes(_ text: String, unit: String) -> UInt64? {
         let t = text.trimmingCharacters(in: .whitespaces).replacingOccurrences(of: ",", with: ".")
         guard let v = Double(t), v >= 0 else { return nil }
-        return UInt64(v * CloudCatalog.multiplier(unit))
+        return UInt64(saturating: v * CloudCatalog.multiplier(unit))
     }
 
     func refresh(_ s: CloudService, force: Bool = false) {
         if s.kind == .folder, let v = try? URL(fileURLWithPath: s.path).resourceValues(forKeys: [.volumeTotalCapacityKey, .volumeAvailableCapacityForImportantUsageKey]) {
-            disk[s.id] = (UInt64(v.volumeTotalCapacity ?? 0), UInt64(v.volumeAvailableCapacityForImportantUsage ?? 0))
+            disk[s.id] = (UInt64(clamping: v.volumeTotalCapacity ?? 0), UInt64(clamping: v.volumeAvailableCapacityForImportantUsage ?? 0))
         }
         if quota[s.id] == nil, let q = savedQuota[s.id], let used = q["used"] {
-            quota[s.id] = CloudQuota(used: UInt64(used), available: q["available"].map { UInt64($0) })
+            quota[s.id] = CloudQuota(used: UInt64(saturating: used), available: q["available"].map { UInt64(saturating: $0) })
         }
         if let link = webLink(s) {
             let age = Date().timeIntervalSince1970 - (savedQuota[s.id]?["at"] ?? 0)

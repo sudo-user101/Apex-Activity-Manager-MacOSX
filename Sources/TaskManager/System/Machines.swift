@@ -78,10 +78,10 @@ enum LocalDocker {
     /// Docker's sizes ("425.8MiB", "3.813GiB", "302kB", "0B") → bytes. Pure: tested.
     static func bytes(_ s: String) -> Int64 {
         let t = s.trimmingCharacters(in: .whitespaces)
-        guard let end = t.firstIndex(where: { !($0.isNumber || $0 == ".") }), let v = Double(t[..<end]) else { return Int64(Double(t) ?? 0) }
+        guard let end = t.firstIndex(where: { !($0.isNumber || $0 == ".") }), let v = Double(t[..<end]) else { return Int64(saturating: Double(t) ?? 0) }
         let units: [String: Double] = ["b": 1, "kb": 1e3, "mb": 1e6, "gb": 1e9, "tb": 1e12,
                                        "kib": 1024, "mib": 1_048_576, "gib": 1_073_741_824, "tib": 1_099_511_627_776]
-        return Int64(v * (units[t[end...].lowercased()] ?? 1))
+        return Int64(saturating: v * (units[t[end...].lowercased()] ?? 1))
     }
 
     /// "a / b" → (a, b) in bytes. Pure: tested.

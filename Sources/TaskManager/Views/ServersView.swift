@@ -452,7 +452,7 @@ private struct FleetSummary: View {
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 220), spacing: 12)], spacing: 12) {
                 tile("CPU", String(format: "%.0f%%", t.cpu), "of \(t.cores) cores",
                      [.init(values: store.fleetCPU, color: .messageBlue)], max: 100, unit: .percent)
-                tile("Memory", String(format: "%.0f%%", t.memoryPercent), "\(Fmt.bytes(UInt64(t.memoryUsed))) of \(Fmt.bytes(UInt64(t.memoryTotal)))",
+                tile("Memory", String(format: "%.0f%%", t.memoryPercent), "\(Fmt.bytes(UInt64(clamping: t.memoryUsed))) of \(Fmt.bytes(UInt64(clamping: t.memoryTotal)))",
                      [.init(values: store.fleetMemory, color: .windowsBlue)], max: 100, unit: .percent)
                 tile("Network", "↓ \(Fmt.rate(t.netIn))", "↑ \(Fmt.rate(t.netOut))",
                      [.init(values: store.fleetIn, color: .orange), .init(values: store.fleetOut, color: .messageBlue, fill: false)], max: nil, unit: .rate)
@@ -484,7 +484,7 @@ private struct FleetSummary: View {
                 Spacer()
                 Text(String(format: "%.0f%%", t.diskPercent)).font(.title3.weight(.semibold)).monospacedDigit()
             }
-            Text("\(Fmt.bytes(UInt64(max(0, t.diskTotal - t.diskUsed)))) free of \(Fmt.bytes(UInt64(t.diskTotal)))")
+            Text("\(Fmt.bytes(UInt64(max(0, t.diskTotal - t.diskUsed)))) free of \(Fmt.bytes(UInt64(clamping: t.diskTotal)))")
                 .font(.caption).foregroundStyle(.secondary).monospacedDigit().lineLimit(1)
             Spacer(minLength: 0)
             ProgressView(value: min(100, t.diskPercent), total: 100)
@@ -572,7 +572,7 @@ private struct FleetList: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             if let snap, error == nil {
                 bar(snap.cpu.total, String(format: "%.0f%%", snap.cpu.total), history: store.cpuHistory[s.id] ?? []).frame(width: 110, alignment: .leading)
-                bar(snap.memory.percent, Fmt.bytes(UInt64(snap.memory.used)), history: nil).frame(width: 110, alignment: .leading)
+                bar(snap.memory.percent, Fmt.bytes(UInt64(clamping: snap.memory.used)), history: nil).frame(width: 110, alignment: .leading)
                 let d = snap.disks.filter { $0.total > 0 }.max { $0.percent < $1.percent }
                 bar(d?.percent ?? 0, d.map { "\(Fmt.bytes(UInt64($0.free))) free" } ?? "–", history: nil).frame(width: 110, alignment: .leading)
                 VStack(alignment: .leading, spacing: 1) {
@@ -623,9 +623,9 @@ private struct ServerCard: View {
                 Text(t).font(.caption).foregroundStyle(StatusDot.color(store.status(server))).lineLimit(3).fixedSize(horizontal: false, vertical: true)
             } else if let s = snap {
                 meter("CPU", s.cpu.total, String(format: "%.0f%%", s.cpu.total))
-                meter("Memory", s.memory.percent, "\(Fmt.bytes(UInt64(s.memory.used))) of \(Fmt.bytes(UInt64(s.memory.total)))")
+                meter("Memory", s.memory.percent, "\(Fmt.bytes(UInt64(clamping: s.memory.used))) of \(Fmt.bytes(UInt64(clamping: s.memory.total)))")
                 if let d = s.disks.filter({ $0.total > 0 }).max(by: { $0.percent < $1.percent }) {
-                    meter("Disk \(d.mount)", d.percent, "\(Fmt.bytes(UInt64(d.free))) free")
+                    meter("Disk \(d.mount)", d.percent, "\(Fmt.bytes(UInt64(clamping: d.free))) free")
                 }
                 let n = ServerInsights.make(s).filter { $0.level != .info }.count
                 if n > 0 { Label("\(n) thing\(n == 1 ? "" : "s") to look at", systemImage: "exclamationmark.triangle.fill").font(.caption).foregroundStyle(.orange) }
@@ -736,7 +736,7 @@ struct ContainersOverview: View {
                     Spacer()
                     VStack(alignment: .trailing, spacing: 1) {
                         Text("Memory").font(.caption).foregroundStyle(.secondary)
-                        Text(limit > 0 ? "\(Fmt.bytes(UInt64(used))) of \(Fmt.bytes(UInt64(limit)))" : (c.memory ?? "—")).font(.callout).monospacedDigit()
+                        Text(limit > 0 ? "\(Fmt.bytes(UInt64(clamping: used))) of \(Fmt.bytes(UInt64(clamping: limit)))" : (c.memory ?? "—")).font(.callout).monospacedDigit()
                     }
                 }
             }

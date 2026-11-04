@@ -45,6 +45,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             FileHandle.standardError.write(Data("signaltool: \(SignalTool.path() ?? "refused")\n".utf8))
             exit(SignalTool.path() == nil ? 1 : 0)
         }
+        Shell.ignoreBrokenPipes()
         MainActor.assumeIsolated {
             AppModel.shared.start()
             Alerts.shared.start()

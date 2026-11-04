@@ -14,7 +14,7 @@ enum Lumen {
     static let apiPage: URL? = nil
     static let accountPage: URL? = nil
 
-    static var base: String? { ProcessInfo.processInfo.environment["APEX_LUMEN_BASE"] ?? liveBase }
+    static var base: String? { TestSwitch.value("APEX_LUMEN_BASE") ?? liveBase }
     static var isLive: Bool { base != nil }
 
     /// How the user pays CyberNet Labs.
@@ -50,11 +50,11 @@ final class LumenAccount {
     init(defaults: UserDefaults = .standard, secrets: SecretStore = KeychainSecrets()) {
         self.defaults = defaults
         self.secrets = secrets
-        hasKey = ProcessInfo.processInfo.environment["APEX_LUMEN_KEY"] != nil || secrets.get(Self.account) != nil
+        hasKey = TestSwitch.value("APEX_LUMEN_KEY") != nil || secrets.get(Self.account) != nil
         access = defaults.string(forKey: "lumenAccess").flatMap(Lumen.Access.init)
     }
 
-    var key: String? { ProcessInfo.processInfo.environment["APEX_LUMEN_KEY"] ?? secrets.get(Self.account) }
+    var key: String? { TestSwitch.value("APEX_LUMEN_KEY") ?? secrets.get(Self.account) }
 
     /// Checks the key with the Lumen service, then keeps it. Returns a problem, or nil.
     func connect(key: String, access: Lumen.Access, check: Bool = true) async -> String? {

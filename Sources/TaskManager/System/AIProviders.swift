@@ -151,7 +151,7 @@ final class CloudKeyStore {
 
     func secret(for k: CloudKey) -> String? {
         // Test switch: APEX_ASSISTANT_KEY supplies a key without the Keychain.
-        ProcessInfo.processInfo.environment["APEX_ASSISTANT_KEY"] ?? secrets.get(k.secretAccount)
+        TestSwitch.value("APEX_ASSISTANT_KEY") ?? secrets.get(k.secretAccount)
     }
 
     /// Adds or updates a key. `secret` nil keeps the one already saved.

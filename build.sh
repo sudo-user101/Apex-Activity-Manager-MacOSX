@@ -52,10 +52,9 @@ sign() {
     codesign --force --options runtime --timestamp --entitlements "$2" ${3:+--identifier "$3"} \
       ${KEYCHAIN_ARGS[@]+"${KEYCHAIN_ARGS[@]}"} --sign "$IDENTITY" "$1"
   else
-    # APEX_LOCAL_IDENTITY (set by `dev.sh build` from this Mac's Apple Development
-    # certificate): the same identity on every build, so permissions granted in
-    # System Settings keep working after a rebuild. Ad-hoc signing ties them to
-    # one build's exact hash instead. Never used for builds others download.
+    # APEX_LOCAL_IDENTITY: the same identity on every build, so permissions granted
+    # in System Settings keep working after an update. Ad-hoc signing ties them to
+    # one build's exact hash instead.
     codesign --force --options runtime --entitlements "$2" ${3:+--identifier "$3"} --sign "${APEX_LOCAL_IDENTITY:--}" --timestamp=none "$1" >/dev/null
   fi
 }

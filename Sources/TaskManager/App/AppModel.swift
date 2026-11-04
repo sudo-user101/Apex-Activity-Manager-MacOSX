@@ -256,7 +256,7 @@ final class AppModel {
         // Local AI's share of the GPU, for the GPU page (only while per-process GPU is sampled).
         let aiGPU = gpuSampled ? LocalAI.detect(s.processes) { _ in nil }.reduce(0) { $0 + $1.gpu } : 0
         historyBuffer.push(s.system, aiGPU: min(100, aiGPU))
-        let ms = MenuStats(cpu: Int(s.system.cpu.total.rounded()), memory: Int(s.system.memory.percent.rounded()))
+        let ms = MenuStats(cpu: Int(saturating: s.system.cpu.total.rounded()), memory: Int(saturating: s.system.memory.percent.rounded()))
         if ms != menuStats { menuStats = ms }
         if historyEnabled { HistoryStore.shared.record(s) }
         Alerts.shared.evaluate(s)

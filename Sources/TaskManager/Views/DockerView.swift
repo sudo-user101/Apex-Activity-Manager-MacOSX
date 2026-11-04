@@ -397,7 +397,7 @@ struct DockerView: View {
             let a = await store.run(c.server, c.req, busyKey: c.key)
             var text = c.done
             if a.ok, let d = a.result, let j = try? JSONSerialization.jsonObject(with: d) as? [String: Any], let n = j["reclaimed"] as? Int64 ?? (j["reclaimed"] as? Int).map(Int64.init), n > 0 {
-                text += " \(Fmt.bytes(UInt64(n))) freed."
+                text += " \(Fmt.bytes(UInt64(clamping: n))) freed."
             }
             show(a.ok, a.ok ? text : a.message)
         }

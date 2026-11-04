@@ -292,7 +292,7 @@ enum CloudUpload {
 
     /// "45 s", "3 min 20 s", "1 h 5 min". Pure: tested.
     static func duration(_ t: TimeInterval) -> String {
-        let s = max(0, Int(t.rounded()))
+        let s = max(0, Int(saturating: t.rounded()))
         if s < 60 { return "\(s) s" }
         if s < 3600 { return s % 60 == 0 ? "\(s / 60) min" : "\(s / 60) min \(s % 60) s" }
         return "\(s / 3600) h \((s % 3600) / 60) min"

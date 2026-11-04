@@ -77,8 +77,8 @@ struct HistoryDetailPopover: View {
 
                 box("\(rangeDays == 1 ? "Today" : "Last \(rangeDays) days")") {
                     fact("CPU time", AppHistoryView.duration(usage.cpuSeconds))
-                    fact("Disk read + written", Fmt.diskBytes(UInt64(usage.diskBytes)))
-                    fact("Network", Fmt.diskBytes(UInt64(usage.netBytes)))
+                    fact("Disk read + written", Fmt.diskBytes(UInt64(saturating: usage.diskBytes)))
+                    fact("Network", Fmt.diskBytes(UInt64(saturating: usage.netBytes)))
                     fact("Energy", usage.energyJoules.map { $0 < 360 ? String(format: "%.1f mWh", $0 / 3.6) : String(format: "%.2f Wh", $0 / 3600) } ?? "—")
                     fact("Peak memory", Fmt.bytes(usage.peakMemory))
                     fact("Last active", Fmt.dateTime.string(from: usage.lastSeen))

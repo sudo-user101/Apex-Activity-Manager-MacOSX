@@ -115,7 +115,7 @@ struct ReportPage: View {
             tile("Memory", String(format: "%.0f%% average", r.memAvg), String(format: "Peak %.0f%%", r.memPeak) + (r.memPeakAt.map { " at " + ReportSummary.time($0) } ?? ""))
             tile("Disk", r.disk.map { String(format: "%.0f%% full", $0) } ?? "—",
                  r.disk == nil ? "Size not available" : "On " + (r.diskMount ?? "the fullest disk") + (r.diskChange.map { abs($0) < 0.5 ? " · no change" : String(format: " · %@%.1f%%", $0 > 0 ? "+" : "", $0) } ?? ""))
-            tile("Network", "↓ " + Fmt.bytes(UInt64(r.received)), "↑ " + Fmt.bytes(UInt64(r.sent)) + " sent")
+            tile("Network", "↓ " + Fmt.bytes(UInt64(saturating: r.received)), "↑ " + Fmt.bytes(UInt64(saturating: r.sent)) + " sent")
             tile("Reachable", r.minutesRead + r.minutesDown > 0 ? String(format: "%.0f%%", Double(r.minutesRead) / Double(r.minutesRead + r.minutesDown) * 100) : "—",
                  r.minutesDown > 0 ? "Down \(Fmt.minutes(r.minutesDown))" : "Every reading answered")
         }

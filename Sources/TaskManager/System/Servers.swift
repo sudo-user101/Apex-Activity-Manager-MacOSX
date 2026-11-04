@@ -240,7 +240,7 @@ enum ServerClient {
         p.standardOutput = out; p.standardError = err; p.standardInput = input == nil ? FileHandle.nullDevice : inp
         do { try p.run() } catch { return Shell.Result(launched: false, status: -1, stdout: "", stderr: error.localizedDescription) }
         if let input {
-            inp.fileHandleForWriting.write(Data(input.utf8))
+            Shell.send(Data(input.utf8), to: inp.fileHandleForWriting)
             try? inp.fileHandleForWriting.close()
         }
         let o = out.fileHandleForReading.readDataToEndOfFile(), e = err.fileHandleForReading.readDataToEndOfFile()

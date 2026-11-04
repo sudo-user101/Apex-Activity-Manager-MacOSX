@@ -71,7 +71,7 @@ enum CloudCatalog {
             func value(_ n: Int, _ u: Int) -> UInt64? {
                 let raw = ns.substring(with: m.range(at: n)).replacingOccurrences(of: ",", with: ".")
                 guard let v = Double(raw) else { return nil }
-                return UInt64(v * multiplier(ns.substring(with: m.range(at: u))))
+                return UInt64(saturating: v * multiplier(ns.substring(with: m.range(at: u))))
             }
             guard let used = value(1, 2), let total = value(3, 4), total > 0, used <= total else { continue }
             if best == nil || total > (best!.total ?? 0) { best = CloudQuota(used: used, available: total - used) }

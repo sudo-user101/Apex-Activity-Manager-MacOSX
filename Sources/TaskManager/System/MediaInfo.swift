@@ -134,7 +134,7 @@ enum MediaInfo {
         if let lens = exif[kCGImagePropertyExifLensModel] as? String { out.append(.init(label: "Lens", value: lens, detail: true)) }
         var shot: [String] = []
         if let f = exif[kCGImagePropertyExifFNumber] as? Double { shot.append(String(format: "f/%.1f", f)) }
-        if let t = exif[kCGImagePropertyExifExposureTime] as? Double, t > 0 { shot.append(t < 1 ? "1/\(Int((1 / t).rounded())) s" : String(format: "%.1f s", t)) }
+        if let t = exif[kCGImagePropertyExifExposureTime] as? Double, t > 0 { shot.append(t < 1 ? "1/\(Int(saturating: (1 / t).rounded())) s" : String(format: "%.1f s", t)) }
         if let iso = (exif[kCGImagePropertyExifISOSpeedRatings] as? [Int])?.first { shot.append("ISO \(iso)") }
         if let fl = exif[kCGImagePropertyExifFocalLength] as? Double { shot.append("\(Int(fl)) mm") }
         if !shot.isEmpty { out.append(.init(label: "Settings", value: shot.joined(separator: " · "), detail: true)) }

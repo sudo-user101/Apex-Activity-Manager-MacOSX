@@ -200,9 +200,14 @@ final class TerminalNSView: NSView {
     }
     private func selectedText() -> String? {
         guard let (a, b) = ordered() else { return nil }
-        let rows = visibleRows()
+        return Self.text(in: visibleRows(), from: a, to: b)
+    }
+    /// Pure: tested.
+    static func text(in rows: [[TerminalEmulator.Cell]], from a: (x: Int, y: Int), to b: (x: Int, y: Int)) -> String? {
+        let last = min(b.y, rows.count - 1)
+        guard a.y <= last else { return nil }       // the selection is all below the last row
         var lines: [String] = []
-        for y in a.y...min(b.y, rows.count - 1) {
+        for y in a.y...last {
             let row = rows[y].filter { !$0.cont }
             let from = y == a.y ? min(a.x, row.count) : 0, to = y == b.y ? min(b.x + 1, row.count) : row.count
             var s = String(row[from..<max(from, to)].map(\.ch))

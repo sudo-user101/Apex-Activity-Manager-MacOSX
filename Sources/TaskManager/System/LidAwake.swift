@@ -17,9 +17,9 @@ final class LidAwake {
     var lidEnabled = UserDefaults.standard.bool(forKey: "lidAwake") { didSet { save(); evaluate() } }
     var apps: [String] = UserDefaults.standard.stringArray(forKey: "lidAwakeApps") ?? [] { didSet { save(); evaluate() } }
     var allowOnBattery = UserDefaults.standard.bool(forKey: "lidAwakeBattery") { didSet { save(); evaluate() } }
-    var batteryMinutes = UserDefaults.standard.object(forKey: "lidAwakeBatteryMinutes") as? Int ?? 60 {
-        didSet { batteryMinutes = min(60, max(5, batteryMinutes)); save(); evaluate() }
-    }
+    /// Limited to an hour by `decide`. Don't set it inside its own didSet: in an
+    /// @Observable class that calls didSet again, until the stack runs out.
+    var batteryMinutes = UserDefaults.standard.object(forKey: "lidAwakeBatteryMinutes") as? Int ?? 60 { didSet { save(); evaluate() } }
     /// Weekdays (1 = Sunday … 7 = Saturday) to stay awake all day, lid open.
     var awakeDays: Set<Int> = Set(UserDefaults.standard.array(forKey: "awakeDays") as? [Int] ?? []) { didSet { save(); evaluate() } }
 

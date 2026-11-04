@@ -1,5 +1,25 @@
 # Changelog
 
+## 1.6.2 (2026-11-04)
+
+Crash fixes, safer error messages and security fixes. No new features.
+
+- **Stay Awake:** changing the "on battery" time no longer crashes Apex.
+- **Server terminal:** output from a server can no longer stop Apex. Fixed huge
+  numbers in control sequences, marks after invisible characters, leaving
+  full-screen programs after the window shrinks, and copying below the last
+  row. Endless control sequences are now limited.
+- **Other crashes fixed:** a helper program quitting while Apex writes to it, an
+  archive claiming huge sizes, a malformed answer from a server, huge sizes on
+  a cloud page or in a box, negative sizes from a server, and a full disk
+  while extracting (now an error message).
+- **Honest results:** when a file can't be moved to the Trash after compressing
+  or extracting, Apex now says so instead of reporting success.
+- **Security:** settings that could send a saved AI key to another server now
+  exist only in development builds.
+- **Signing:** Apex is signed by CyberNet Labs. macOS still asks you to confirm
+  the first time you open it.
+
 ## 1.6.1 (2026-11-04)
 
 - **Shelf:** a picture dragged from a browser goes on the shelf at full

@@ -316,7 +316,7 @@ private struct FilesPane: View {
                 let a = await ServerPanel.sendAsync(server, ["op": "files.write", "path": target, "offset": offset, "data": piece.base64EncodedString()], long: true)
                 guard a.ok else { busy = false; show(false, a.message); return }
                 offset += piece.count
-                note = (true, "Uploading \(url.lastPathComponent): \(Fmt.bytes(UInt64(offset))) of \(Fmt.bytes(UInt64(data.count)))")
+                note = (true, "Uploading \(url.lastPathComponent): \(Fmt.bytes(UInt64(clamping: offset))) of \(Fmt.bytes(UInt64(clamping: data.count)))")
             } while offset < data.count
             busy = false
             show(true, "\(url.lastPathComponent) uploaded to \(path).")
@@ -338,7 +338,7 @@ private struct FilesPane: View {
                 let piece = Data(base64Encoded: o["data"] as? String ?? "") ?? Data()
                 data.append(piece); offset += piece.count
                 eof = o["eof"] as? Bool == true || piece.isEmpty
-                note = (true, "Downloading \(f.name): \(Fmt.bytes(UInt64(offset)))")
+                note = (true, "Downloading \(f.name): \(Fmt.bytes(UInt64(clamping: offset)))")
             }
             busy = false
             do { try data.write(to: url); show(true, "\(f.name) saved to \(url.deletingLastPathComponent().lastPathComponent).") }
