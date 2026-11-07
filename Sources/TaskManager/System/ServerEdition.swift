@@ -138,7 +138,7 @@ enum ServerEdition {
         let saved = Keychain.read(account: tokenAccount(s))
         guard let token = saved.value else {
             if saved.status == errSecItemNotFound { return .failure(.other(notPaired(s))) }
-            return .failure(.other("This copy of Apex can’t open the pairing saved for \(s.name) (macOS: \(Keychain.describe(saved.status))). It was most likely saved by another copy of Apex on this Mac. Use Pair Again with a code from `sudo apex-server pair`."))
+            return .failure(.other("This version of Apex can’t open the pairing saved for \(s.name). Use Pair Again with a code from `sudo apex-server pair` on the server."))
         }
         guard url(s.host, s.port, path) != nil else { return .failure(.other("That address doesn’t look right.")) }
         var headers = ["Authorization": "Bearer " + token]

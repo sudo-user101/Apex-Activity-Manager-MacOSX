@@ -334,22 +334,28 @@ enum Cloud {
 }
 
 /// Passwords for added servers, in the login keychain (never in settings files).
-/// macOS lets only the copy of Apex that saved an item read it (by its
-/// signature): another copy on this Mac (an older install, a build) is
-/// refused. So when an item belongs to another copy, this copy keeps its own
-/// beside it (`account` + this copy's mark), and reads look there first.
+/// Each build keeps its own items (`account` + `buildMark`) and only ever opens
+/// those. Opening an item another build saved makes macOS show its password box,
+/// which takes over the screen: on 2026-11-04 it drew 10,000 points tall, past the
+/// display, and left the owner's Mac unusable. Without an Apple team ID every
+/// build counts as another, so logins are entered again after an update.
 enum Keychain {
     private static let service = "Apex Activity Manager"
 
-    /// This copy's mark: its signing team, or its path for unsigned / ad-hoc copies.
-    private static let copyMark: String = {
+    /// A second guard, for anything else that touches the Keychain (App Removal).
+    static func neverAsk() { _ = askedNever }
+    private static let askedNever: Void = { SecKeychainSetUserInteractionAllowed(false) }()
+
+    /// The signing team (it keeps access across builds), or this exact build.
+    private static let buildMark: String = {
         var code: SecCode?, info: CFDictionary?
         if SecCodeCopySelf([], &code) == errSecSuccess, let code {
             var st: SecStaticCode?
             if SecCodeCopyStaticCode(code, [], &st) == errSecSuccess, let st,
                SecCodeCopySigningInformation(st, SecCSFlags(rawValue: kSecCSSigningInformation), &info) == errSecSuccess,
-               let team = (info as? [String: Any])?[kSecCodeInfoTeamIdentifier as String] as? String {
-                return "#" + team
+               let d = info as? [String: Any] {
+                if let team = d[kSecCodeInfoTeamIdentifier as String] as? String { return "#" + team }
+                if let hash = d[kSecCodeInfoUnique as String] as? Data { return "#" + hash.map { String(format: "%02x", $0) }.joined() }
             }
         }
         // FNV-1a of the path: the same on every launch (hashValue isn't).
@@ -361,15 +367,7 @@ enum Keychain {
     @discardableResult
     static func set(_ password: String, account: String) -> OSStatus {
         readings.forget(account)
-        var status = write(password, account)
-        if status == errSecDuplicateItem || status == errSecAuthFailed || status == errSecInteractionNotAllowed {
-            status = write(password, account + copyMark)      // the plain one is another copy's
-        }
-        return status
-    }
-
-    private static func write(_ password: String, _ account: String) -> OSStatus {
-        let base = query(account)
+        let base = query(account + buildMark)
         SecItemDelete(base as CFDictionary)
         var add = base
         add[kSecValueData as String] = Data(password.utf8)
@@ -384,9 +382,7 @@ enum Keychain {
         readings.answer(account) { lookUp(account) }
     }
 
-    /// Reading an item another build saved shows macOS's password box, and Apex
-    /// reads a server's token for every request. So each item is read once per
-    /// launch, whatever the answer: the box can't keep coming back.
+    /// Apex reads a server's token for every request: once per launch is enough.
     static let readings = Readings()
     final class Readings: @unchecked Sendable {
         private var known: [String: (value: String?, status: OSStatus)] = [:]
@@ -404,27 +400,23 @@ enum Keychain {
     }
 
     private static func lookUp(_ account: String) -> (value: String?, status: OSStatus) {
-        var first = errSecItemNotFound
-        for a in [account + copyMark, account] {
-            var q = query(a)
-            q[kSecReturnData as String] = true
-            q[kSecMatchLimit as String] = kSecMatchLimitOne
-            var out: AnyObject?
-            let st = SecItemCopyMatching(q as CFDictionary, &out)
-            if st == errSecSuccess, let d = out as? Data, let v = String(data: d, encoding: .utf8) { return (v, st) }
-            if first == errSecItemNotFound { first = st }
-        }
-        return (nil, first)
+        var q = query(account + buildMark)
+        q[kSecReturnData as String] = true
+        q[kSecMatchLimit as String] = kSecMatchLimitOne
+        var out: AnyObject?
+        let st = SecItemCopyMatching(q as CFDictionary, &out)
+        if st == errSecSuccess, let d = out as? Data, let v = String(data: d, encoding: .utf8) { return (v, st) }
+        return (nil, st)
     }
 
     static func remove(account: String) {
         readings.forget(account)
-        SecItemDelete(query(account + copyMark) as CFDictionary)
-        SecItemDelete(query(account) as CFDictionary)
+        SecItemDelete(query(account + buildMark) as CFDictionary)
     }
 
     private static func query(_ account: String) -> [String: Any] {
-        [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service, kSecAttrAccount as String: account]
+        _ = askedNever
+        return [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service, kSecAttrAccount as String: account]
     }
 
     static func describe(_ status: OSStatus) -> String { SecCopyErrorMessageString(status, nil) as String? ?? "error \(status)" }

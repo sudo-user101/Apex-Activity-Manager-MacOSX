@@ -46,6 +46,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             exit(SignalTool.path() == nil ? 1 : 0)
         }
         Shell.ignoreBrokenPipes()
+        Keychain.neverAsk()
         MainActor.assumeIsolated {
             AppModel.shared.start()
             Alerts.shared.start()

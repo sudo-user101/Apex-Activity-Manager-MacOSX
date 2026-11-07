@@ -1,4 +1,5 @@
 import AppKit
+import CryptoKit
 import Foundation
 import FanControlCore
 
@@ -177,35 +178,54 @@ final class FanController {
         guard let helper = Bundle.main.url(forAuxiliaryExecutable: "apex-fanhelper")?.path else {
             lastError = "The fan helper is missing from the app bundle."; return
         }
-        let user = NSUserName()
-        let plist = """
-        <?xml version="1.0" encoding="UTF-8"?>
-        <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-        <plist version="1.0"><dict>
-        <key>Label</key><string>\(FanControl.daemonLabel)</string>
-        <key>ProgramArguments</key><array><string>\(FanControl.helperPath)</string></array>
-        <key>RunAtLoad</key><true/><key>KeepAlive</key><true/>
-        <key>ProcessType</key><string>Background</string>
-        </dict></plist>
-        """
-        let tmp = FileManager.default.temporaryDirectory.appendingPathComponent("com.apex.fanhelper.plist")
-        try? plist.write(to: tmp, atomically: true, encoding: .utf8)
-        let dir = (FanControl.configPath as NSString).deletingLastPathComponent
-        let script = [
-            "mkdir -p /Library/PrivilegedHelperTools \(Shell.quote(dir))",
-            "cp \(Shell.quote(helper)) \(FanControl.helperPath)",
-            "chown root:wheel \(FanControl.helperPath)", "chmod 755 \(FanControl.helperPath)",
-            "cp \(Shell.quote(tmp.path)) \(FanControl.daemonPlist)",
-            "chown root:wheel \(FanControl.daemonPlist)", "chmod 644 \(FanControl.daemonPlist)",
-            "touch \(Shell.quote(FanControl.configPath))",
-            "chown \(Shell.quote(user)) \(Shell.quote(FanControl.configPath))", "chmod 644 \(Shell.quote(FanControl.configPath))",
-            "launchctl bootout system/\(FanControl.daemonLabel) 2>/dev/null; launchctl bootstrap system \(FanControl.daemonPlist)",
-        ].joined(separator: " && ")
+        guard let requirement = Self.helperRequirement else {
+            lastError = "This copy of Apex isn’t signed, so it can’t check the helper before installing it."; return
+        }
+        let script = Self.installScript(helper: helper, user: NSUserName(), requirement: requirement)
         let r = await Task.detached {
             Shell.runAsAdmin(script, prompt: "Apex Activity Manager wants to install its hardware helper, which controls battery charging and fan speed. It runs in the background and can be removed at any time from Apex.")
         }.value
         if r.status == 0 { installed = true; lastError = nil; save(); refreshStatus() }
         else if !Shell.isUserCancelled(r) { lastError = r.stderr.trimmingCharacters(in: .whitespacesAndNewlines) }
+    }
+
+    /// The helper must carry the same signing certificate as the Apex that's
+    /// running. Taken from the running code, which another program can't change,
+    /// so a helper swapped on disk doesn't pass. Nil for an unsigned copy.
+    nonisolated static var helperRequirement: String? {
+        var me: SecCode?, info: CFDictionary?
+        guard SecCodeCopySelf([], &me) == errSecSuccess, let me,
+              SecCodeCopySigningInformation(unsafeBitCast(me, to: SecStaticCode.self), SecCSFlags(rawValue: kSecCSSigningInformation), &info) == errSecSuccess,
+              let leaf = ((info as? [String: Any])?[kSecCodeInfoCertificates as String] as? [SecCertificate])?.first else { return nil }
+        let sha1 = Insecure.SHA1.hash(data: SecCertificateCopyData(leaf) as Data).map { String(format: "%02x", $0) }.joined()
+        return "identifier \"\(FanControl.daemonLabel)\" and certificate leaf = H\"\(sha1)\""
+    }
+
+    /// Runs as root after the password. Nothing is read from a place the user
+    /// can change after the check: the helper is copied into a root-only folder
+    /// and checked there, and the LaunchDaemon file is written by root itself.
+    /// (A file in the user's temp folder could be swapped while the password
+    /// box is open, and launchd would start whatever it named, as root.) Pure: tested.
+    nonisolated static func installScript(helper: String, user: String, requirement: String) -> String {
+        let plist = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
+            + "<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">"
+            + "<plist version=\"1.0\"><dict><key>Label</key><string>\(FanControl.daemonLabel)</string>"
+            + "<key>ProgramArguments</key><array><string>\(FanControl.helperPath)</string></array>"
+            + "<key>RunAtLoad</key><true/><key>KeepAlive</key><true/><key>ProcessType</key><string>Background</string></dict></plist>\n"
+        let staged = FanControl.helperPath + ".new"
+        let dir = (FanControl.configPath as NSString).deletingLastPathComponent
+        return [
+            "mkdir -p /Library/PrivilegedHelperTools \(Shell.quote(dir))",
+            "rm -f \(staged)",
+            "install -m 755 -o root -g wheel \(Shell.quote(helper)) \(staged)",
+            "{ /usr/bin/codesign --verify --strict -R=\(Shell.quote(requirement)) \(staged) || { rm -f \(staged); echo 'The helper in this Apex has been changed, so it wasn’t installed. Reinstall Apex.' >&2; false; }; }",
+            "mv -f \(staged) \(FanControl.helperPath)",
+            "printf '%s' \(Shell.quote(plist)) > \(FanControl.daemonPlist)",
+            "chown root:wheel \(FanControl.daemonPlist)", "chmod 644 \(FanControl.daemonPlist)",
+            "touch \(Shell.quote(FanControl.configPath))",
+            "chown \(Shell.quote(user)) \(Shell.quote(FanControl.configPath))", "chmod 644 \(Shell.quote(FanControl.configPath))",
+            "launchctl bootout system/\(FanControl.daemonLabel) 2>/dev/null; launchctl bootstrap system \(FanControl.daemonPlist)",
+        ].joined(separator: " && ")
     }
 
     /// Stops the helper (fans return to automatic, charging back to normal) and deletes it.

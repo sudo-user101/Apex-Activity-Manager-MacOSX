@@ -1,5 +1,7 @@
+import Security
 import XCTest
 @testable import TaskManager
+import FanControlCore
 
 /// Input Apex doesn't control must never stop the app. A failure here is usually
 /// the whole test run ending with a crash, not a red line.
@@ -143,6 +145,24 @@ final class CrashSafetyTests: XCTestCase {
         XCTAssertEqual(asked, 2, "not saved yet costs nothing, and a later save is seen")
     }
 
+    /// APEX_KEYCHAIN_ITEM names a saved item from another build (this process doesn't
+    /// own it). It isn't opened at all, so there's nothing for macOS to ask about.
+    func testAnotherBuildsItemIsNeverOpened() throws {
+        guard let account = ProcessInfo.processInfo.environment["APEX_KEYCHAIN_ITEM"] else { throw XCTSkip("set APEX_KEYCHAIN_ITEM") }
+        XCTAssertEqual(Keychain.read(account: account).status, errSecItemNotFound)
+    }
+
+    func testAKeySurvivesInThisBuild() {
+        let account = "apex-test-\(UUID().uuidString)"
+        defer { Keychain.remove(account: account) }
+        XCTAssertEqual(Keychain.set("one", account: account), errSecSuccess)
+        XCTAssertEqual(Keychain.get(account: account), "one")
+        XCTAssertEqual(Keychain.set("two", account: account), errSecSuccess)
+        XCTAssertEqual(Keychain.get(account: account), "two")
+        Keychain.remove(account: account)
+        XCTAssertNil(Keychain.get(account: account))
+    }
+
     private struct Seeded {
         var state: UInt64
         init(_ seed: UInt64) { state = seed }
@@ -150,5 +170,35 @@ final class CrashSafetyTests: XCTestCase {
             state = state &* 6364136223846793005 &+ 1442695040888963407
             return range.lowerBound + Int((state >> 33) % UInt64(range.count))
         }
+    }
+}
+
+/// 2026-11-07: the root helper install can't be redirected by a program
+/// running as the user.
+final class HelperInstallTests: XCTestCase {
+    func testTheInstallScriptReadsNothingTheUserCanSwap() {
+        let tmp = FileManager.default.temporaryDirectory.path
+        let s = FanController.installScript(helper: "/Applications/Apex Activity Manager.app/Contents/MacOS/apex-fanhelper",
+                                            user: "someone", requirement: "identifier \"com.apex.fanhelper\" and certificate leaf = H\"00\"")
+        XCTAssertFalse(s.contains(tmp), "nothing from the user's temp folder")
+        XCTAssertFalse(s.contains(".plist' \(FanControl.daemonPlist)") || s.contains("cp "), "the LaunchDaemon file isn't copied from anywhere")
+        let check = s.range(of: "codesign --verify")!, move = s.range(of: "mv -f")!, start = s.range(of: "launchctl bootstrap")!
+        XCTAssertTrue(check.lowerBound < move.lowerBound && move.lowerBound < start.lowerBound, "checked before it's put in place or started")
+        XCTAssertTrue(s.contains("install -m 755 -o root -g wheel"), "copied into a root-only place first, then checked there")
+        XCTAssertTrue(s.contains("printf '%s' '<?xml"), "root writes the LaunchDaemon file itself")
+        XCTAssertTrue(s.contains("<string>\(FanControl.helperPath)</string>"))
+    }
+
+    /// The plist root writes, run through a shell exactly as the script does.
+    func testTheLaunchDaemonFileRootWritesIsValid() throws {
+        let s = FanController.installScript(helper: "/x", user: "u", requirement: "r")
+        let printf = try XCTUnwrap(s.components(separatedBy: " && ").first { $0.hasPrefix("printf") })
+        let out = FileManager.default.temporaryDirectory.appendingPathComponent("plist-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: out) }
+        let cmd = printf.replacingOccurrences(of: FanControl.daemonPlist, with: Shell.quote(out.path))
+        XCTAssertEqual(Shell.run("/bin/sh", ["-c", cmd]).status, 0)
+        let p = try XCTUnwrap(NSDictionary(contentsOf: out))
+        XCTAssertEqual(p["Label"] as? String, FanControl.daemonLabel)
+        XCTAssertEqual(p["ProgramArguments"] as? [String], [FanControl.helperPath])
     }
 }

@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.6.4 (2026-11-07)
+
+Security fixes. No new features.
+
+- **The Keychain password box can't take over your screen.** After an update,
+  macOS asked for the password to logins an earlier version had saved, and
+  that box could draw taller than the screen with its buttons out of reach.
+  Each version of Apex now keeps its own saved logins and never opens
+  another's, so the box doesn't appear. Logins saved by an earlier version
+  need entering again once (Pair Again for servers).
+- **The hardware helper is checked before it's installed.** Its startup file
+  went through your temp folder while the password box was open, where
+  another program running as you could have swapped it to run its own code as
+  root. Now the helper is checked against Apex's own signature, as root,
+  before it's put in place, and the startup file is written by root directly.
+
 ## 1.6.3 (2026-11-04)
 
 - **Keychain:** macOS's password box no longer keeps coming back after an
